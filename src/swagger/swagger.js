@@ -10,11 +10,11 @@ const options = {
     },
     servers: [
       {
-        url: 'http://localhost:9800/api',
+        url: 'http://localhost:450/api',
         description: 'Development server',
       },
       {
-        url: "https:/live.onrender.com/api",
+        url: "https://timedrop-backend.onrender.com/api",
         description: "Live Server"
       }
     ],

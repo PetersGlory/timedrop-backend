@@ -68,6 +68,69 @@
             "type": "string"
           }
         }
+      },
+      "Market": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "category": { "type": "string" },
+          "question": { "type": "string" },
+          "image": { "type": "object", "properties": { "url": { "type": "string" }, "hint": { "type": "string" } } },
+          "history": { "type": "array", "items": { "type": "object", "properties": { "date": { "type": "string", "format": "date-time" }, "volume": { "type": "number" } } } },
+          "startDate": { "type": "string", "format": "date-time" },
+          "endDate": { "type": "string", "format": "date-time" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string" },
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "phone": { "type": "string" },
+          "gender": { "type": "string", "enum": ["male", "female", "other"] },
+          "isVerified": { "type": "boolean" },
+          "role": { "type": "string", "enum": ["user", "driver", "admin", "super_admin"] },
+          "country": { "type": "string" },
+          "jingallyId": { "type": "string" }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "marketId": { "type": "string", "format": "uuid" },
+          "marketName": { "type": "string" },
+          "type": { "type": "string", "enum": ["BUY", "SELL"] },
+          "price": { "type": "number" },
+          "quantity": { "type": "integer" },
+          "status": { "type": "string", "enum": ["Open", "Filled", "Cancelled"] }
+        }
+      },
+      "Portfolio": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string", "format": "uuid" },
+          "holdings": { "type": "array", "items": { "type": "object" } },
+          "openOrders": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } },
+          "filledOrders": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string", "format": "uuid" },
+          "notificationPreferences": { "type": "object" },
+          "preferences": { "type": "object" }
+        }
+      },
+      "Bookmark": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "string", "format": "uuid" },
+          "marketId": { "type": "string", "format": "uuid" }
+        }
       }
     }
   },

@@ -1,15 +1,45 @@
-// Settings Controller
+const Settings = require('../models/settings');
+
 module.exports = {
+  // Get settings for the authenticated user
   async getSettings(req, res) {
-    // TODO: Implement get settings
-    res.json({ message: 'getSettings not implemented' });
+    try {
+      const settings = await Settings.findOne({ where: { userId: req.user.id } });
+      if (!settings) {
+        return res.status(404).json({ message: 'Settings not found' });
+      }
+      res.json({ settings });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
   },
+
+  // Create or update settings for the authenticated user
   async updateSettings(req, res) {
-    // TODO: Implement update settings
-    res.json({ message: 'updateSettings not implemented' });
+    try {
+      let settings = await Settings.findOne({ where: { userId: req.user.id } });
+      if (settings) {
+        await settings.update(req.body);
+      } else {
+        settings = await Settings.create({ ...req.body, userId: req.user.id });
+      }
+      res.json({ success: true, settings });
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid input', error: error.message });
+    }
   },
+
+  // Update notification preferences for the authenticated user
   async updateNotifications(req, res) {
-    // TODO: Implement update notification preferences
-    res.json({ message: 'updateNotifications not implemented' });
+    try {
+      let settings = await Settings.findOne({ where: { userId: req.user.id } });
+      if (!settings) {
+        return res.status(404).json({ message: 'Settings not found' });
+      }
+      await settings.update({ notificationPreferences: req.body });
+      res.json({ success: true, settings });
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid input', error: error.message });
+    }
   }
 }; 
