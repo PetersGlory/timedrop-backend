@@ -121,4 +121,149 @@ router.put('/:id', marketController.updateMarket);
  */
 router.delete('/:id', marketController.deleteMarket);
 
+/**
+ * @swagger
+ * /markets/categories:
+ *   get:
+ *     tags: [Markets]
+ *     summary: List all market categories
+ *     responses:
+ *       200:
+ *         description: List of categories
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 categories:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *   post:
+ *     tags: [Markets]
+ *     summary: Create a new market category
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Category created
+ *       400:
+ *         description: Invalid input
+ */
+router.get('/categories', marketController.getCategories);
+/**
+ * @swagger
+ * /markets/categories:
+ *   post:
+ *     tags: [Markets]
+ *     summary: Create a new market category
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: The name of the category
+ *     responses:
+ *       201:
+ *         description: Category created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: string
+ *                   description: The ID of the created category
+ *                 name:
+ *                   type: string
+ *                   description: The name of the created category
+ *       400:
+ *         description: Invalid input
+ */
+router.post('/categories', marketController.createCategory);
+
+/**
+ * @swagger
+ * /markets/categories/{id}:
+ *   put:
+ *     tags: [Markets]
+ *     summary: Update a market category
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Category ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Category updated
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Category not found
+ *   delete:
+ *     tags: [Markets]
+ *     summary: Delete a market category
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Category ID
+ *     responses:
+ *       204:
+ *         description: Category deleted
+ *       404:
+ *         description: Category not found
+ */
+router.put('/categories/:id', marketController.updateCategory);
+/**
+ * @swagger
+ * /markets/categories/{id}:
+ *   delete:
+ *     tags: [Markets]
+ *     summary: Delete a market category
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Category ID
+ *     responses:
+ *       204:
+ *         description: Category deleted
+ *       404:
+ *         description: Category not found
+ */
+router.delete('/categories/:id', marketController.deleteCategory);
+
 module.exports = router; 
