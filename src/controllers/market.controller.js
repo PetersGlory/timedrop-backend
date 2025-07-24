@@ -1,12 +1,34 @@
 const Market = require('../models/market');
 const Category = require('../models/category');
+const { subHours, addHours } = require('date-fns');
 
 module.exports = {
+  // Get all markets
+
   // Get all markets
   async getMarkets(req, res) {
     try {
       const markets = await Market.findAll();
-      res.json({ markets });
+
+      // Map and format each market according to the required structure
+      const formattedMarkets = markets.map(market => ({
+        id: String(market.id),
+        category: market.category || 'General',
+        question: market.question || market.title || '',
+        image: {
+          url: market.imageUrl || 'https://placehold.co/600x400.png',
+          hint: market.imageHint || 'stock market',
+        },
+        startDate: market.startDate
+          ? new Date(market.startDate).toISOString()
+          : subHours(new Date(), 4).toISOString(),
+        endDate: market.endDate
+          ? new Date(market.endDate).toISOString()
+          : addHours(new Date(), 20).toISOString(),
+        history: market.history || [], // order history, should be an array
+      }));
+
+      res.json({ markets: formattedMarkets });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -16,10 +38,30 @@ module.exports = {
   async getMarket(req, res) {
     try {
       const market = await Market.findByPk(req.params.id);
+
       if (!market) {
         return res.status(404).json({ message: 'Market not found' });
       }
-      res.json({ market });
+
+      // Format the market according to the required structure
+      const formattedMarket = {
+        id: String(market.id),
+        category: market.category || 'General',
+        question: market.question || market.title || '',
+        image: {
+          url: market.imageUrl || 'https://placehold.co/600x400.png',
+          hint: market.imageHint || 'stock market',
+        },
+        startDate: market.startDate
+          ? new Date(market.startDate).toISOString()
+          : subHours(new Date(), 4).toISOString(),
+        endDate: market.endDate
+          ? new Date(market.endDate).toISOString()
+          : addHours(new Date(), 20).toISOString(),
+        history: market.history || [], // order history, should be an array
+      };
+
+      res.json({ market: formattedMarket });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
