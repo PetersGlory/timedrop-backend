@@ -797,4 +797,55 @@ router.get('/bookmarks/:id', auth, isAdmin, adminController.getBookmark);
 router.put('/bookmarks/:id', auth, isAdmin, adminController.updateBookmark);
 router.delete('/bookmarks/:id', auth, isAdmin, adminController.deleteBookmark);
 
+
+/**
+ * @swagger
+ * /admin/recent-activities:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get recent system activities
+ *     description: Retrieve a chronological list of all system activities including user, market, order, portfolio, settings and bookmark changes. Admin access only.
+ *     operationId: adminGetRecentActivities
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of recent activities
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 activities:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       type:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       timestamp:
+ *                         type: string
+ *                         format: date-time
+ *                       userId:
+ *                         type: string
+ *                       marketId:
+ *                         type: string
+ *                       orderId:
+ *                         type: string
+ *                       portfolioId:
+ *                         type: string
+ *                       settingId:
+ *                         type: string
+ *                       bookmarkId:
+ *                         type: string
+ *                       data:
+ *                         type: object
+ *       500:
+ *         description: Server error
+ */
+router.get('/recent-activities', auth, isAdmin, adminController.getRecentActivities);
+
+
 module.exports = router; 

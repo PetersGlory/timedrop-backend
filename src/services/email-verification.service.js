@@ -29,22 +29,86 @@ class EmailVerificationService {
     });
   }
 
+  // Common email header styling
+  getEmailHeader() {
+    return `
+      <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+          <h1 style="color: #ffffff; font-size: 32px; font-weight: 700; letter-spacing: -0.025em; margin: 0; font-family: 'Inter', sans-serif;">
+            timedrop
+          </h1>
+          <p style="color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 8px 0 0 0;">Financial Prediction Markets</p>
+        </div>
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+    `;
+  }
+
+  // Common email footer
+  getEmailFooter() {
+    return `
+        </div>
+        <!-- Footer -->
+        <div style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+          <div style="margin-bottom: 20px;">
+            <h3 style="color: #667eea; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; margin: 0;">timedrop</h3>
+          </div>
+          <p style="color: #64748b; font-size: 14px; margin: 0 0 10px 0;">
+            Stay ahead of the markets with intelligent predictions
+          </p>
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+            This email was sent from an automated system. Please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
   // Send verification email with code
-  async sendVerificationEmail(user, password) {
+  async sendVerificationEmail(user) {
     const verificationCode = this.generateVerificationCode();
     this.storeVerificationCode(user.id, verificationCode);
 
     const mailOptions = {
       from: process.env.SMTP_FROM,
       to: user.email,
-      subject: 'Verify Your Email Address',
+      subject: 'Verify Your Timedrop Account',
       html: `
-        <h1>Welcome to Jingally Logistics!</h1>
-        <p>Your verification code is:</p>
-        <h2 style="font-size: 32px; letter-spacing: 5px; text-align: center; padding: 10px; background-color: #f5f5f5; border-radius: 5px;">${verificationCode}</h2>
-        ${password ? `<p>Your password is: ${password}</p>` : ''}
-        <p>This code will expire in 24 hours.</p>
-        <p>If you didn't create an account, please ignore this email.</p>
+        ${this.getEmailHeader()}
+        
+        <h2 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 20px 0;">
+          Welcome to Timedrop!
+        </h2>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          Hi ${user.firstName || 'there'},
+        </p>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          Thank you for joining Timedrop, the premier platform for financial prediction markets. To complete your account setup, please verify your email address using the code below:
+        </p>
+        
+        <div style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); padding: 30px; text-align: center; border-radius: 12px; margin: 30px 0;">
+          <p style="color: #64748b; font-size: 14px; font-weight: 500; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.05em;">
+            Verification Code
+          </p>
+          <div style="font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #667eea; font-family: 'Courier New', monospace; background-color: #ffffff; padding: 20px; border-radius: 8px; border: 2px solid #e2e8f0;">
+            ${verificationCode}
+          </div>
+        </div>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 30px 0;">
+          This verification code will expire in <strong>24 hours</strong>. If you didn't create a Timedrop account, you can safely ignore this email.
+        </p>
+        
+        <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 30px 0;">
+          <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.5;">
+            <strong>Security Tip:</strong> Never share your verification code with anyone. Timedrop will never ask for your code via phone or email.
+          </p>
+        </div>
+        
+        ${this.getEmailFooter()}
       `
     };
 
@@ -57,18 +121,51 @@ class EmailVerificationService {
     }
   }
 
-  // Send verification email with code
-  async sendNewUserEmail(user, password) {
+  // Send welcome email for new verified users
+  async sendWelcomeEmail(user) {
     const mailOptions = {
       from: process.env.SMTP_FROM,
       to: user.email,
-      subject: 'Welcome to Jingally Logistics',
+      subject: 'Welcome to Timedrop - Start Trading Predictions',
       html: `
-        <h1>Welcome to Jingally Logistics!</h1>
-        <p>Your account has been created successfully.</p>
-        ${password ? `<p>Your password is: ${password}</p>` : ''}
-        <p>You can now login to your account using your email and password.</p>
-        <p>If you didn't create an account, please ignore this email.</p>
+        ${this.getEmailHeader()}
+        
+        <h2 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 20px 0;">
+          🎉 Welcome to Timedrop!
+        </h2>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi ${user.firstName || 'there'},
+        </p>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          Your account has been successfully verified! You're now ready to explore the world of financial prediction markets and start making intelligent trades.
+        </p>
+        
+        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid #10b981; border-radius: 12px; padding: 25px; margin: 30px 0;">
+          <h3 style="color: #047857; font-size: 18px; font-weight: 600; margin: 0 0 15px 0;">
+            What's Next?
+          </h3>
+          <ul style="color: #065f46; font-size: 14px; line-height: 1.6; margin: 0; padding-left: 20px;">
+            <li style="margin-bottom: 8px;">Browse live prediction markets</li>
+            <li style="margin-bottom: 8px;">Build your portfolio with smart trades</li>
+            <li style="margin-bottom: 8px;">Use AI-powered predictions to guide your decisions</li>
+            <li>Manage your wallet and track your performance</li>
+          </ul>
+        </div>
+        
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${process.env.FRONTEND_URL || 'https://timedrop.app'}" 
+             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 30px; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">
+            Start Trading Now
+          </a>
+        </div>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 30px 0 0 0;">
+          If you have any questions, our support team is here to help. Welcome aboard!
+        </p>
+        
+        ${this.getEmailFooter()}
       `
     };
 
@@ -77,6 +174,238 @@ class EmailVerificationService {
       return true;
     } catch (error) {
       console.error('Error sending welcome email:', error);
+      return false;
+    }
+  }
+
+  // Send password reset email
+  async sendPasswordResetEmail(user, resetToken) {
+    const resetUrl = `${process.env.FRONTEND_URL || 'https://timedrop.app'}/reset-password?token=${resetToken}`;
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM,
+      to: user.email,
+      subject: 'Reset Your Timedrop Password',
+      html: `
+        ${this.getEmailHeader()}
+        
+        <h2 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 20px 0;">
+          Password Reset Request
+        </h2>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi ${user.firstName || 'there'},
+        </p>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          We received a request to reset your Timedrop account password. Click the button below to create a new password:
+        </p>
+        
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${resetUrl}" 
+             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 30px; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">
+            Reset Password
+          </a>
+        </div>
+        
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 30px 0;">
+          If the button doesn't work, copy and paste this link into your browser:<br>
+          <a href="${resetUrl}" style="color: #667eea; word-break: break-all;">${resetUrl}</a>
+        </p>
+        
+        <div style="background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; padding: 20px; margin: 30px 0;">
+          <p style="color: #dc2626; font-size: 14px; margin: 0; line-height: 1.5;">
+            <strong>Security Notice:</strong> This password reset link will expire in 1 hour. If you didn't request this reset, please ignore this email and your password will remain unchanged.
+          </p>
+        </div>
+        
+        ${this.getEmailFooter()}
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      return false;
+    }
+  }
+
+  // Send order confirmation email
+  async sendOrderConfirmationEmail(user, order, market) {
+    const orderTypeColor = order.type === 'BUY' ? '#10b981' : '#ef4444';
+    const orderTypeIcon = order.type === 'BUY' ? '📈' : '📉';
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM,
+      to: user.email,
+      subject: `Order Confirmation - ${order.type} ${market.question}`,
+      html: `
+        ${this.getEmailHeader()}
+        
+        <h2 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 20px 0;">
+          ${orderTypeIcon} Order Confirmed
+        </h2>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi ${user.firstName || 'there'},
+        </p>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          Your order has been successfully placed and is now active in the market.
+        </p>
+        
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 30px 0;">
+          <h3 style="color: #1e293b; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">Order Details</h3>
+          
+          <div style="margin-bottom: 15px;">
+            <span style="color: #64748b; font-size: 14px; font-weight: 500;">Market:</span><br>
+            <span style="color: #1e293b; font-size: 16px; font-weight: 600;">${market.question}</span>
+          </div>
+          
+          <div style="display: flex; margin-bottom: 15px;">
+            <div style="flex: 1; margin-right: 20px;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Order Type:</span><br>
+              <span style="color: ${orderTypeColor}; font-size: 16px; font-weight: 600;">${order.type}</span>
+            </div>
+            <div style="flex: 1;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Quantity:</span><br>
+              <span style="color: #1e293b; font-size: 16px; font-weight: 600;">${order.quantity}</span>
+            </div>
+          </div>
+          
+          <div style="display: flex; margin-bottom: 15px;">
+            <div style="flex: 1; margin-right: 20px;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Price per Share:</span><br>
+              <span style="color: #1e293b; font-size: 16px; font-weight: 600;">$${order.price}</span>
+            </div>
+            <div style="flex: 1;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Total Value:</span><br>
+              <span style="color: #1e293b; font-size: 16px; font-weight: 600;">$${(order.price * order.quantity).toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <span style="color: #64748b; font-size: 14px; font-weight: 500;">Status:</span><br>
+            <span style="color: #f59e0b; font-size: 16px; font-weight: 600;">${order.status}</span>
+          </div>
+          
+          <div>
+            <span style="color: #64748b; font-size: 14px; font-weight: 500;">Order Time:</span><br>
+            <span style="color: #1e293b; font-size: 16px;">${new Date().toLocaleString()}</span>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${process.env.FRONTEND_URL || 'https://timedrop.app'}/portfolio" 
+             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 30px; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">
+            View Portfolio
+          </a>
+        </div>
+        
+        <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 30px 0 0 0;">
+          You can track your orders and manage your portfolio anytime from your dashboard.
+        </p>
+        
+        ${this.getEmailFooter()}
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Error sending order confirmation email:', error);
+      return false;
+    }
+  }
+
+  // Send order filled notification
+  async sendOrderFilledEmail(user, order, market) {
+    const orderTypeColor = order.type === 'BUY' ? '#10b981' : '#ef4444';
+    const orderTypeIcon = order.type === 'BUY' ? '✅' : '💰';
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM,
+      to: user.email,
+      subject: `Order Filled - ${order.type} ${market.question}`,
+      html: `
+        ${this.getEmailHeader()}
+        
+        <h2 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 20px 0;">
+          ${orderTypeIcon} Order Filled!
+        </h2>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi ${user.firstName || 'there'},
+        </p>
+        
+        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+          Great news! Your order has been successfully filled in the market.
+        </p>
+        
+        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid #10b981; border-radius: 12px; padding: 25px; margin: 30px 0;">
+          <h3 style="color: #047857; font-size: 18px; font-weight: 600; margin: 0 0 15px 0;">
+            Trade Completed Successfully
+          </h3>
+          <p style="color: #065f46; font-size: 14px; margin: 0;">
+            Your ${order.type.toLowerCase()} order for ${order.quantity} shares at $${order.price} per share has been executed.
+          </p>
+        </div>
+        
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin: 30px 0;">
+          <h3 style="color: #1e293b; font-size: 18px; font-weight: 600; margin: 0 0 20px 0;">Trade Summary</h3>
+          
+          <div style="margin-bottom: 15px;">
+            <span style="color: #64748b; font-size: 14px; font-weight: 500;">Market:</span><br>
+            <span style="color: #1e293b; font-size: 16px; font-weight: 600;">${market.question}</span>
+          </div>
+          
+          <div style="display: flex; margin-bottom: 15px;">
+            <div style="flex: 1; margin-right: 20px;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Action:</span><br>
+              <span style="color: ${orderTypeColor}; font-size: 16px; font-weight: 600;">${order.type}</span>
+            </div>
+            <div style="flex: 1;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Shares:</span><br>
+              <span style="color: #1e293b; font-size: 16px; font-weight: 600;">${order.quantity}</span>
+            </div>
+          </div>
+          
+          <div style="display: flex; margin-bottom: 15px;">
+            <div style="flex: 1; margin-right: 20px;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Fill Price:</span><br>
+              <span style="color: #1e293b; font-size: 16px; font-weight: 600;">$${order.price}</span>
+            </div>
+            <div style="flex: 1;">
+              <span style="color: #64748b; font-size: 14px; font-weight: 500;">Total Amount:</span><br>
+              <span style="color: #1e293b; font-size: 18px; font-weight: 700;">$${(order.price * order.quantity).toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div>
+            <span style="color: #64748b; font-size: 14px; font-weight: 500;">Filled At:</span><br>
+            <span style="color: #1e293b; font-size: 16px;">${new Date().toLocaleString()}</span>
+          </div>
+        </div>
+        
+        <div style="text-align: center; margin: 40px 0;">
+          <a href="${process.env.FRONTEND_URL || 'https://timedrop.app'}/portfolio" 
+             style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 30px; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">
+            View Updated Portfolio
+          </a>
+        </div>
+        
+        ${this.getEmailFooter()}
+      `
+    };
+
+    try {
+      await this.transporter.sendMail(mailOptions);
+      return true;
+    } catch (error) {
+      console.error('Error sending order filled email:', error);
       return false;
     }
   }
@@ -110,6 +439,10 @@ class EmailVerificationService {
 
       await user.update({ isVerified: true });
       this.verificationCodes.delete(userId);
+      
+      // Send welcome email after successful verification
+      await this.sendWelcomeEmail(user);
+      
       return user;
     } catch (error) {
       throw error;
@@ -131,294 +464,6 @@ class EmailVerificationService {
       return await this.sendVerificationEmail(user);
     } catch (error) {
       throw error;
-    }
-  }
-
-  // Send booking confirmation email
-  async sendBookingConfirmationEmail(user, shipment) {
-    const mailOptions = {
-      from: process.env.SMTP_FROM,
-      to: user.email,
-      subject: 'Your Shipment Booking Confirmation',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #333; text-align: center;">Shipment Booking Confirmation</h1>
-          
-          <p>Dear ${user.firstName},</p>
-          <p>Thank you for choosing Jingally Logistic! We're excited to confirm that your booking has been successfully processed.</p>
-
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <h2 style="color: #444; margin-bottom: 15px;">Payment Details</h2>
-            <p><strong>Amount:</strong> N/A </p>
-            <p><strong>Status:</strong> ${shipment.paymentStatus || 'N/A'}</p>
-            <p><strong>Payment Method:</strong> ${shipment.paymentMethod || 'N/A'}</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-          </div>
-
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <h2 style="color: #444; margin-bottom: 15px;">Booking Details</h2>
-            <p><strong>Tracking Number:</strong> ${shipment.trackingNumber}</p>
-            <p><strong>Service Type:</strong> ${shipment.serviceType}</p>
-            <p><strong>Package Type:</strong> ${shipment.packageType}</p>
-            <p><strong>Package Description:</strong> ${shipment.packageDescription}</p>
-            <p><strong>Pickup Location:</strong> ${JSON.parse(shipment.pickupAddress).street}</p>
-            <p><strong>Delivery Location:</strong> ${JSON.parse(shipment.deliveryAddress).street}</p>
-            <p><strong>Receiver Name:</strong> ${shipment.receiverName}</p>
-            <p><strong>Receiver Phone:</strong> ${shipment.receiverPhoneNumber}</p>
-            <p><strong>Scheduled Pickup:</strong> ${new Date(shipment.scheduledPickupTime).toLocaleString()}</p>
-            <p><strong>Estimated Delivery:</strong> ${new Date(shipment.estimatedDeliveryTime).toLocaleString()}</p>
-          </div>
-
-          <p>Our team is committed to ensuring a seamless and reliable delivery experience for you. Should you have any questions or require assistance, please don't hesitate to contact us at info@jingally.com or reply to this email.</p>
-
-          <p>Stay connected with us via our app for live updates on your booking status.</p>
-
-          <p>Once again, thank you for trusting Jingally Logistic with your logistics needs.</p>
-
-          <p>Best regards,<br>Jingally Logistic Support Team</p>
-        </div>
-      `
-    };
-
-    try {
-      await this.transporter.sendMail(mailOptions);
-      return true;
-    } catch (error) {
-      console.error('Error sending booking confirmation email:', error);
-      return false;
-    }
-  }
-
-  // Send payment confirmation email
-  async sendPaymentConfirmationEmail(user, shipment) {
-    // Helper to safely parse address and get a field, fallback to empty string if not available
-    function getAddressField(address, field) {
-      try {
-        const obj = typeof address === 'string' ? JSON.parse(address) : address;
-        return obj && obj[field] ? obj[field] : '';
-      } catch {
-        return '';
-      }
-    }
-
-    // Determine delivery method and pickup/dropoff label/location
-    let deliveryMethod = '';
-    let pickupOrDropoffLabel = '';
-    let pickupOrDropoffLocation = '';
-    if (shipment.deliveryType && shipment.deliveryType.toLowerCase() === 'home') {
-      deliveryMethod = 'Home Pickup';
-      pickupOrDropoffLabel = 'Scheduled Pickup';
-      pickupOrDropoffLocation = getAddressField(shipment.pickupAddress, 'street');
-    } else {
-      deliveryMethod = 'Drop off at warehouse';
-      pickupOrDropoffLabel = 'Scheduled Drop Off';
-      pickupOrDropoffLocation = getAddressField(shipment.pickupAddress, 'street');
-    }
-
-    // Compose the email
-    const mailOptions = {
-      from: process.env.SMTP_FROM,
-      to: user.email,
-      subject: 'Booking Confirmation',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #333; text-align: center;">Payment Confirmation</h1>
-          
-          <p>Dear ${user.firstName || 'Customer'},</p>
-          <p>Thank you for choosing Jingally Logistic! We're excited to confirm that your booking has been successfully processed.</p>
-
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <h2 style="color: #444; margin-bottom: 15px;">Payment Details</h2>
-            <p><strong>Amount:</strong> N/A</p>
-            <p><strong>Status:</strong> ${shipment.paymentStatus ? shipment.paymentStatus : 'pending'}</p>
-            <p><strong>Payment Status:</strong> not verified</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-          </div>
-
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <h2 style="color: #444; margin-bottom: 15px;">Booking Details</h2>
-            <p><strong>Tracking Number:</strong> ${shipment.trackingNumber || 'N/A'}</p>
-            <p><strong>Service Type:</strong> ${shipment.serviceType || 'N/A'}</p>
-            <p><strong>Package Type:</strong> ${shipment.packageType || 'N/A'}</p>
-            <p><strong>Package Description:</strong> ${shipment.packageDescription || 'N/A'}</p>
-            <p><strong>Delivery Method:</strong> ${deliveryMethod}</p>
-            <p><strong>${pickupOrDropoffLabel}:</strong> ${shipment.scheduledPickupTime ? new Date(shipment.scheduledPickupTime).toLocaleString() : 'N/A'}</p>
-            <p><strong>${deliveryMethod === 'home' ? 'Pickup Location' : 'Drop Off Location'}:</strong> ${pickupOrDropoffLocation}</p>
-            <p><strong>Delivery Location:</strong> ${getAddressField(shipment.deliveryAddress, 'country')}</p>
-            <p><strong>Receiver Name:</strong> ${shipment.receiverName || 'N/A'}</p>
-            <p><strong>Receiver Phone:</strong> ${shipment.receiverPhoneNumber || 'N/A'}</p>
-            <p><strong>Estimated Delivery:</strong> ${shipment.estimatedDeliveryTime ? new Date(shipment.estimatedDeliveryTime).toLocaleString() : 'N/A'}</p>
-          </div>
-
-          <p>Our team will reach out within 6 to 24 hours to confirm your booking.</p>
-
-          <p>We are committed to ensuring a seamless and reliable delivery experience for you. Should you have any questions or require assistance, please don't hesitate to contact us at info@jingally.com or reply to this email.</p>
-
-          <p>Stay connected with us via our app for live updates on your booking status.</p>
-
-          <p>Once again, thank you for trusting Jingally Logistic with your logistics needs.</p>
-
-          <p>Best regards,<br>Jingally Logistic Support Team</p>
-        </div>
-      `
-    };
-
-    try {
-      await this.transporter.sendMail(mailOptions);
-      return true;
-    } catch (error) {
-      console.error('Error sending payment confirmation email:', error);
-      return false;
-    }
-  }
-
-  // Send admin notification for new booking
-  async sendAdminBookingNotification(adminEmail, user, shipment) {
-    const mailOptions = {
-      from: process.env.SMTP_FROM,
-      to: adminEmail,
-      subject: 'New Booking Alert - Action Required',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #2c5282; text-align: center;">🆕 New Booking Alert</h1>
-          
-          <p>Dear Admin,</p>
-          <p>A new booking has been submitted and requires your attention.</p>
-
-          <div style="background-color: #ebf8ff; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #2c5282;">
-            <h2 style="color: #2c5282; margin-bottom: 15px;">Payment Details</h2>
-            <p><strong>Amount:</strong> ${shipment.price ? `£20 for service charge` : 'N/A'}</p>
-            <p><strong>Status:</strong> ${shipment.paymentStatus || 'Pending'}</p>
-            <p><strong>Payment Status:</strong> ${shipment.paymentStatus === 'paid' ? 'Verified' : 'Not Verified'}</p>
-            <p><strong>Date:</strong> ${new Date().toLocaleString()}</p>
-          </div>
-
-          <div style="background-color: #ebf8ff; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #2c5282;">
-            <h2 style="color: #2c5282; margin-bottom: 15px;">Booking Details</h2>
-            <p><strong>Tracking Number:</strong> ${shipment.trackingNumber || 'N/A'}</p>
-            <p><strong>Service Type:</strong> ${shipment.serviceType || 'N/A'}</p>
-            <p><strong>Package Type:</strong> ${shipment.packageType || 'N/A'}</p>
-            <p><strong>Package Description:</strong> ${shipment.packageDescription || 'N/A'}</p>
-            <p><strong>Delivery Method:</strong> ${shipment.deliveryType || 'N/A'}</p>
-
-            ${shipment.deliveryType === 'home' ? 
-              `<p><strong>Pickup Location:</strong> ${JSON.parse(shipment.pickupAddress).street}, ${JSON.parse(shipment.pickupAddress).city}</p>` :
-              `<p><strong>Drop-off Location:</strong> ${JSON.parse(shipment.pickupAddress).street}, ${JSON.parse(shipment.pickupAddress).city}</p>`
-            }
-
-            <p><strong>Delivery Location:</strong> ${JSON.parse(shipment.deliveryAddress).country}</p>
-            <p><strong>Receiver Name:</strong> ${shipment.receiverName || 'N/A'}</p>
-            <p><strong>Receiver Phone:</strong> ${shipment.receiverPhoneNumber || 'N/A'}</p>
-            <p><strong>${shipment.deliveryType === 'home' ? 'Scheduled Pickup' : 'Scheduled Drop-off'}:</strong> ${shipment.scheduledPickupTime ? new Date(shipment.scheduledPickupTime).toLocaleString() : 'N/A'}</p>
-            <p><strong>Estimated Delivery:</strong> ${shipment.estimatedDeliveryTime ? new Date(shipment.estimatedDeliveryTime).toLocaleString() : 'N/A'}</p>
-          </div>
-
-          <div style="background-color: #fff5f5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #e53e3e;">
-            <p style="margin: 0; color: #e53e3e;">⚠️ Please review and process this booking as soon as possible.</p>
-          </div>
-
-          <p style="color: #4a5568;">For any questions or issues, please contact the support team.</p>
-
-          <p style="margin-top: 30px; color: #4a5568;">Best regards,<br>Jingally Logistics System</p>
-        </div>
-      `
-    };
-
-    try {
-      await this.transporter.sendMail(mailOptions);
-      return true;
-    } catch (error) {
-      console.error('Error sending admin booking notification:', error);
-      return false;
-    }
-  }
-
-  // Send shipment status update email
-  async sendShipmentStatusUpdateEmail(user, shipment) {
-    const statusMessages = {
-      'picked_up': 'Your shipment has been picked up and is now in our possession.',
-      'in_transit': 'Your shipment is now in transit and on its way to the destination.',
-      'delivered': 'Your shipment has been successfully delivered!',
-      'cancelled': 'Your shipment has been cancelled.'
-    };
-
-    const statusEmojis = {
-      'picked_up': '📦',
-      'in_transit': '🚚',
-      'delivered': '✅',
-      'cancelled': '❌'
-    };
-
-    const mailOptions = {
-      from: process.env.SMTP_FROM,
-      to: user.email,
-      subject: `Shipment Status Update: ${shipment.status.replace('_', ' ').toUpperCase()}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #333; text-align: center;">
-            ${statusEmojis[shipment.status]} Shipment Status Update
-          </h1>
-          
-          <p>Dear ${user.firstName},</p>
-          
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <h2 style="color: #444; margin-bottom: 15px;">Status Update</h2>
-            <p style="font-size: 18px; color: #2c5282;">
-              <strong>${shipment.status.replace('_', ' ').toUpperCase()}</strong>
-            </p>
-            <p>${statusMessages[shipment.status]}</p>
-          </div>
-
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <h2 style="color: #444; margin-bottom: 15px;">Shipment Details</h2>
-            <p><strong>Tracking Number:</strong> ${shipment.trackingNumber}</p>
-            <p><strong>Package Type:</strong> ${shipment.packageType || 'N/A'}</p>
-            ${shipment.packageDescription ? `<p><strong>Description:</strong> ${shipment.packageDescription}</p>` : ''}
-            ${shipment.fragile ? '<p><strong>⚠️ Fragile Package</strong></p>' : ''}
-          </div>
-
-          <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-            <h2 style="color: #444; margin-bottom: 15px;">Location Details</h2>
-            <div style="margin-bottom: 15px;">
-              <h3 style="color: #555; margin-bottom: 5px;">Pickup Address</h3>
-              <p>${shipment.pickupAddress.street}<br>
-              ${shipment.pickupAddress.city}, ${shipment.pickupAddress.state}<br>
-              ${shipment.pickupAddress.country}</p>
-            </div>
-            <div>
-              <h3 style="color: #555; margin-bottom: 5px;">Delivery Address</h3>
-              <p>${shipment.deliveryAddress.street}<br>
-              ${shipment.deliveryAddress.city}, ${shipment.deliveryAddress.state}<br>
-              ${shipment.deliveryAddress.country}</p>
-            </div>
-          </div>
-
-          ${shipment.driver ? `
-            <div style="background-color: #f9f9f9; padding: 20px; border-radius: 5px; margin: 20px 0;">
-              <h2 style="color: #444; margin-bottom: 15px;">Driver Information</h2>
-              <p><strong>Driver Name:</strong> ${shipment.driver.firstName} ${shipment.driver.lastName}</p>
-              <p><strong>Contact:</strong> ${shipment.driver.phone}</p>
-            </div>
-          ` : ''}
-
-          <div style="text-align: center; margin-top: 30px;">
-            <p style="color: #666;">You can track your shipment status anytime using your tracking number: <strong>${shipment.trackingNumber}</strong></p>
-            <p style="color: #666;">For any questions or concerns, please contact our support team.</p>
-          </div>
-
-          <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
-            <p style="color: #666;">Best regards,<br>Jingally Logistic Support Team</p>
-          </div>
-        </div>
-      `
-    };
-
-    try {
-      await this.transporter.sendMail(mailOptions);
-      return true;
-    } catch (error) {
-      console.error('Error sending shipment status update email:', error);
-      return false;
     }
   }
 }

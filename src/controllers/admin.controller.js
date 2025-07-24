@@ -286,5 +286,182 @@ module.exports = {
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  }
+  },
+
+  // activity section
+  async getRecentActivities(req, res) {
+    try {
+      const users = await User.findAll({
+        attributes: ['id', 'firstName', 'lastName', 'email', 'createdAt', 'updatedAt'], // Include relevant user attributes
+      });
+      const markets = await Market.findAll({
+        attributes: ['id', 'question', 'createdAt', 'updatedAt'], // Include relevant market attributes
+      });
+      const orders = await Order.findAll({
+        attributes: ['id', 'type', 'quantity', 'price', 'createdAt', 'updatedAt'], // Include relevant order attributes
+      });
+      const portfolios = await Portfolio.findAll({
+        attributes: ['id', 'createdAt', 'updatedAt'],
+      });
+      const settings = await Settings.findAll({
+        attributes: ['id', 'createdAt', 'updatedAt'],
+      });
+      const bookmarks = await Bookmark.findAll({
+        attributes: ['id', 'createdAt', 'updatedAt'],
+      });
+
+      const activities = [];
+
+      // User activities (Login/Logout - need to be implemented in auth controller)
+      users.forEach(user => {
+        if (user.createdAt) {
+          activities.push({
+            type: 'User Created',
+            description: `User ${user.firstName} ${user.lastName} was created`,
+            timestamp: user.createdAt,
+            userId: user.id,
+            data: {
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email
+            }
+          });
+        }
+        if (user.updatedAt && user.createdAt.getTime() !== user.updatedAt.getTime()) {
+           activities.push({
+              type: 'User Updated',
+              description: `User ${user.firstName} ${user.lastName} was updated`,
+              timestamp: user.updatedAt,
+              userId: user.id,
+              data: {
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email
+              }
+            });
+        }
+
+      });
+
+      // Market activities
+      markets.forEach(market => {
+        if (market.createdAt) {
+          activities.push({
+            type: 'Market Created',
+            description: `Market ${market.question} was created`,
+            timestamp: market.createdAt,
+            marketId: market.id,
+            data: { question: market.question }
+          });
+        }
+        if (market.updatedAt && market.createdAt.getTime() !== market.updatedAt.getTime()) {
+           activities.push({
+              type: 'Market Updated',
+              description: `Market ${market.question} was updated`,
+              timestamp: market.updatedAt,
+              marketId: market.id,
+              data: { question: market.question }
+            });
+        }
+      });
+
+      // Order activities
+      orders.forEach(order => {
+        if (order.createdAt) {
+          activities.push({
+            type: 'Order Created',
+            description: `Order ${order.type} for ${order.quantity} shares was created`,
+            timestamp: order.createdAt,
+            orderId: order.id,
+            data: {
+              type: order.type,
+              quantity: order.quantity,
+              price: order.price,
+            },
+          });
+        }
+         if (order.updatedAt && order.createdAt.getTime() !== order.updatedAt.getTime()) {
+          activities.push({
+            type: 'Order Updated',
+            description: `Order ${order.type} for ${order.quantity} shares was updated`,
+            timestamp: order.updatedAt,
+            orderId: order.id,
+            data: {
+              type: order.type,
+              quantity: order.quantity,
+              price: order.price,
+            },
+          });
+        }
+      });
+
+      // Portfolio activities
+      portfolios.forEach(portfolio => {
+        if (portfolio.createdAt) {
+          activities.push({
+            type: 'Portfolio Created',
+            description: `Portfolio was created`,
+            timestamp: portfolio.createdAt,
+            portfolioId: portfolio.id,
+          });
+        }
+         if (portfolio.updatedAt && portfolio.createdAt.getTime() !== portfolio.updatedAt.getTime()) {
+           activities.push({
+              type: 'Portfolio Updated',
+              description: `Portfolio was updated`,
+              timestamp: portfolio.updatedAt,
+              portfolioId: portfolio.id,
+            });
+        }
+      });
+
+      // Settings activities
+      settings.forEach(setting => {
+        if (setting.createdAt) {
+          activities.push({
+            type: 'Setting Created',
+            description: `Setting was created`,
+            timestamp: setting.createdAt,
+            settingId: setting.id,
+          });
+        }
+        if (setting.updatedAt && setting.createdAt.getTime() !== setting.updatedAt.getTime()) {
+           activities.push({
+              type: 'Setting Updated',
+              description: `Setting was updated`,
+              timestamp: setting.updatedAt,
+              settingId: setting.id,
+            });
+        }
+      });
+
+      // Bookmark activities
+      bookmarks.forEach(bookmark => {
+        if (bookmark.createdAt) {
+          activities.push({
+            type: 'Bookmark Created',
+            description: `Bookmark was created`,
+            timestamp: bookmark.createdAt,
+            bookmarkId: bookmark.id,
+          });
+        }
+        if (bookmark.updatedAt && bookmark.createdAt.getTime() !== bookmark.updatedAt.getTime()) {
+           activities.push({
+              type: 'Bookmark Updated',
+              description: `Bookmark was updated`,
+              timestamp: bookmark.updatedAt,
+              bookmarkId: bookmark.id,
+            });
+        }
+      });
+
+
+      // Sort activities by timestamp (most recent first)
+      activities.sort((a, b) => b.timestamp - a.timestamp);
+
+      res.json({ activities });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  },
 }; 
