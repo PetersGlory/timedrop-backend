@@ -69,8 +69,19 @@ module.exports = {
 
   // Create a new market
   async createMarket(req, res) {
+    const {category, question, history, image, startDate, endDate} = req.body
     try {
-      const market = await Market.create(req.body);
+      const market = await Market.create({
+        question,
+        category,
+        history: history || [],
+        image: {
+          url: image.imageURL,
+          hint: image.imageHint
+        },
+        startDate,
+        endDate
+      });
       res.status(201).json({ market });
     } catch (error) {
       res.status(400).json({ message: 'Invalid input', error: error.message });
