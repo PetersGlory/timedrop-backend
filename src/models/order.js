@@ -11,6 +11,10 @@ const Order = sequelize.define('Order', {
     type: DataTypes.UUID,
     allowNull: false
   },
+  userId: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
   marketName: {
     type: DataTypes.STRING,
     allowNull: false

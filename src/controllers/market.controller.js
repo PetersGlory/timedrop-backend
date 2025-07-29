@@ -49,8 +49,8 @@ module.exports = {
         category: market.category || 'General',
         question: market.question || market.title || '',
         image: {
-          url: market.url || 'https://placehold.co/600x400.png',
-          hint: market.hint || 'stock market',
+          url: market.image.url || 'https://placehold.co/600x400.png',
+          hint: market.image.hint || 'stock market',
         },
         startDate: market.startDate
           ? new Date(market.startDate).toISOString()
