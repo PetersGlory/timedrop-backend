@@ -4,9 +4,14 @@ module.exports = {
   // Get settings for the authenticated user
   async getSettings(req, res) {
     try {
-      const settings = await Settings.findOne({ where: { userId: req.user.id } });
+      let settings = await Settings.findOne({ where: { userId: req.user.id } });
       if (!settings) {
-        return res.status(404).json({ message: 'Settings not found' });
+        // Create default settings using the model as a guide
+        settings = await Settings.create({
+          userId: req.user.id,
+          notificationPreferences: {},
+          preferences: {}
+        });
       }
       res.json({ settings });
     } catch (error) {
