@@ -48,7 +48,7 @@ module.exports = {
       }
 
       // Calculate total cost for BUY, or check asset for SELL
-      const totalCost = parseFloat(price) * parseInt(quantity);
+      const totalCost = parseFloat(price);
 
       if (type === 'BUY') {
         if (parseFloat(wallet.balance) < totalCost) {
