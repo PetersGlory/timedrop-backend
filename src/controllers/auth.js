@@ -1,6 +1,7 @@
 const User = require('../models/user');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { Wallet } = require('../models');
 
 function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -20,6 +21,12 @@ module.exports = {
       }
       const user = await User.create({ email, password, firstName, lastName, phone, gender });
       const token = generateToken(user);
+      // Create wallet for the user based on wallet.js model
+      await Wallet.create({
+        userId: user.id,
+        balance: 0,
+        currency: 'NGN'
+      });
       res.status(201).json({ user, token });
     } catch (error) {
       res.status(400).json({ message: 'Invalid input', error: error.message });

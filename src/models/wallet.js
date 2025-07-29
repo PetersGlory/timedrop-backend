@@ -20,7 +20,7 @@ const Wallet = sequelize.define('Wallet', {
   currency: {
     type: DataTypes.STRING,
     allowNull: false,
-    defaultValue: 'USD'
+    defaultValue: 'NGN'
   }
 }, {
   timestamps: true

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const orderController = require('../controllers/order.controller');
+const auth = require('../controllers/auth');
 
 /**
  * @swagger
@@ -27,7 +28,7 @@ const orderController = require('../controllers/order.controller');
  *                   items:
  *                     $ref: '#/components/schemas/Order'
  */
-router.get('/', orderController.getOrders);
+router.get('/', auth, orderController.getOrders);
 
 /**
  * @swagger
@@ -70,7 +71,7 @@ router.get('/', orderController.getOrders);
  *       400:
  *         description: Invalid input
  */
-router.post('/', orderController.createOrder);
+router.post('/', auth, orderController.createOrder);
 
 /**
  * @swagger
@@ -100,6 +101,6 @@ router.post('/', orderController.createOrder);
  *       404:
  *         description: Order not found
  */
-router.post('/:id/cancel', orderController.cancelOrder);
+router.post('/:id/cancel', auth, orderController.cancelOrder);
 
 module.exports = router; 

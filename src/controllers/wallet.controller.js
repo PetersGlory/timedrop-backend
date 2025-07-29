@@ -3,10 +3,15 @@ const Wallet = require('../models/wallet');
 module.exports = {
   // Get the wallet for the authenticated user
   async getWallet(req, res) {
+    let wallet;
     try {
-      const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
+      wallet = await Wallet.findOne({ where: { userId: req.user.id } });
       if (!wallet) {
-        return res.status(404).json({ message: 'Wallet not found' });
+        wallet = await Wallet.create({
+            userId: req.user.id,
+            balance: 0,
+            currency: 'NGN'
+        });
       }
       res.json({ wallet });
     } catch (error) {
@@ -25,7 +30,7 @@ module.exports = {
       const { currency, balance } = req.body;
       const wallet = await Wallet.create({
         userId: req.user.id,
-        currency: currency || 'USD',
+        currency: currency || 'NGN',
         balance: balance || 0
       });
       res.status(201).json({ wallet });
