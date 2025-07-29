@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const orderController = require('../controllers/order.controller');
-const auth = require('../controllers/auth');
+const auth = require('../middleware/auth');
 
 /**
  * @swagger
@@ -28,7 +28,7 @@ const auth = require('../controllers/auth');
  *                   items:
  *                     $ref: '#/components/schemas/Order'
  */
-router.get('/', auth, orderController.getOrders);
+router.get('/', auth,orderController.getOrders);
 
 /**
  * @swagger
