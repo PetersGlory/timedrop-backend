@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const settingsController = require('../controllers/settings.controller');
+const auth = require('../middleware/auth');
 
 /**
  * @swagger
@@ -22,7 +23,7 @@ const settingsController = require('../controllers/settings.controller');
  *                   type: object
  *                   description: Settings object
  */
-router.get('/', settingsController.getSettings);
+router.get('/',auth, settingsController.getSettings);
 
 /**
  * @swagger
@@ -52,7 +53,7 @@ router.get('/', settingsController.getSettings);
  *                   type: object
  *                   description: Settings object
  */
-router.post('/', settingsController.updateSettings);
+router.post('/', auth, settingsController.updateSettings);
 
 /**
  * @swagger
@@ -82,6 +83,6 @@ router.post('/', settingsController.updateSettings);
  *                   type: object
  *                   description: Settings object
  */
-router.patch('/notifications', settingsController.updateNotifications);
+router.patch('/notifications', auth, settingsController.updateNotifications);
 
 module.exports = router; 
