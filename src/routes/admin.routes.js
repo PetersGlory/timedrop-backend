@@ -848,4 +848,127 @@ router.delete('/bookmarks/:id', auth, isAdmin, adminController.deleteBookmark);
 router.get('/recent-activities', auth, isAdmin, adminController.getRecentActivities);
 
 
+
+/**
+ * @swagger
+ * /admin/withdrawals:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get all withdrawal requests
+ *     description: Retrieve all withdrawal requests, optionally filtered by status. Admin access only.
+ *     operationId: adminGetAllWithdrawals
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Filter withdrawals by status (e.g., pending, approved, rejected, completed, failed)
+ *     responses:
+ *       200:
+ *         description: List of withdrawal requests
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 withdrawals:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Withdrawal'
+ *       500:
+ *         description: Server error
+ */
+router.get('/withdrawals', auth, isAdmin, adminController.getAllWithdrawals);
+
+/**
+ * @swagger
+ * /admin/withdrawals/{id}:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get a withdrawal request by ID
+ *     description: Retrieve a single withdrawal request by its ID. Admin access only.
+ *     operationId: adminGetWithdrawal
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The withdrawal request ID
+ *     responses:
+ *       200:
+ *         description: Withdrawal request found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 withdrawal:
+ *                   $ref: '#/components/schemas/Withdrawal'
+ *       404:
+ *         description: Withdrawal request not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/withdrawals/:id', auth, isAdmin, adminController.getWithdrawal);
+
+/**
+ * @swagger
+ * /admin/withdrawals/{id}:
+ *   patch:
+ *     tags: [Admin]
+ *     summary: Update a withdrawal request
+ *     description: Update the status, processedAt, or reason of a withdrawal request. Admin access only.
+ *     operationId: adminUpdateWithdrawal
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The withdrawal request ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 description: New status (e.g., approved, rejected, completed, failed)
+ *               processedAt:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Date/time the withdrawal was processed
+ *               reason:
+ *                 type: string
+ *                 description: Reason for rejection or failure
+ *     responses:
+ *       200:
+ *         description: Withdrawal request updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 withdrawal:
+ *                   $ref: '#/components/schemas/Withdrawal'
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Withdrawal request not found
+ *       500:
+ *         description: Server error
+ */
+router.patch('/withdrawals/:id', auth, isAdmin, adminController.updateWithdrawal);
+
+
+
 module.exports = router; 

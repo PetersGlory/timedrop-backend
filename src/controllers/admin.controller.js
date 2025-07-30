@@ -4,6 +4,7 @@ const Order = require('../models/order');
 const Portfolio = require('../models/portfolio');
 const Settings = require('../models/settings');
 const Bookmark = require('../models/bookmark');
+const { Withdrawal } = require('../models');
 
 module.exports = {
   // Users
@@ -463,6 +464,68 @@ module.exports = {
     } catch (error) {
       console.log(error)
       res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  },
+
+  // Get all withdrawal requests (optionally filter by status)
+  async getAllWithdrawals(req, res) {
+    try {
+      const { status } = req.query;
+      const where = {};
+      if (status) {
+        where.status = status;
+      }
+      const withdrawals = await Withdrawal.findAll({ where, order: [['createdAt', 'DESC']] });
+      res.json({ withdrawals });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  },
+
+  // Get a single withdrawal request by ID
+  async getWithdrawal(req, res) {
+    try {
+      const withdrawal = await Withdrawal.findByPk(req.params.id);
+      if (!withdrawal) {
+        return res.status(404).json({ message: 'Withdrawal request not found' });
+      }
+      res.json({ withdrawal });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  },
+
+  // Update a withdrawal request (e.g., approve, reject, mark as completed/failed)
+  async updateWithdrawal(req, res) {
+    try {
+      const withdrawal = await Withdrawal.findByPk(req.params.id);
+      if (!withdrawal) {
+        return res.status(404).json({ message: 'Withdrawal request not found' });
+      }
+
+      // Only allow updating status, processedAt, and reason
+      const allowedFields = ['status', 'processedAt', 'reason'];
+      const updates = {};
+      allowedFields.forEach(field => {
+        if (req.body[field] !== undefined) {
+          updates[field] = req.body[field];
+        }
+      });
+
+      // If status is being updated to 'approved', 'rejected', 'completed', or 'failed', set processedAt if not provided
+      if (
+        updates.status &&
+        ['approved', 'rejected', 'completed', 'failed'].includes(updates.status) &&
+        !updates.processedAt
+      ) {
+        updates.processedAt = new Date();
+      }
+
+      await withdrawal.update(updates);
+
+      res.json({ withdrawal });
+    } catch (error) {
+      res.status(400).json({ message: 'Invalid input', error: error.message });
     }
   },
 }; 

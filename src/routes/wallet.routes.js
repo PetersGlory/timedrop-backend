@@ -75,4 +75,15 @@ router.put('/', auth, walletController.updateWallet);
 router.post('/deposit', auth, walletController.deposit);
 
 
+/**
+ * @route   POST /api/wallet/withdraw
+ * @desc    Request a withdrawal from the authenticated user's wallet
+ * @access  Private
+ * @body    { amount: number, currency?: string }
+ * @returns { withdrawal: object }
+ */
+router.post('/withdraw', auth, walletController.withdraw);
+
+
+
 module.exports = router;
