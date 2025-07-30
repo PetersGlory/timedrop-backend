@@ -6,7 +6,8 @@ const Portfolio = require('./portfolio');
 const Settings = require('./settings');
 const Bookmark = require('./bookmark');
 const Category = require('./category');
-const Wallet = require('./wallet')
+const Wallet = require('./wallet');
+const Withdrawal = require('./withdrawal')
 
 // Define associations here as needed
 // e.g., User.hasMany(Order), etc.
@@ -24,6 +25,7 @@ const syncDatabase = async () => {
     await Bookmark.sync({ alter: alterOption });
     await Category.sync({ alter: alterOption });
     await Wallet.sync({ alter: alterOption });
+    await Withdrawal.sync({ alter: alterOption });
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 1;');
     console.log('Database synced successfully');
   } catch (error) {
@@ -45,5 +47,6 @@ module.exports = {
   Bookmark,
   Category,
   Wallet,
+  Withdrawal,
   syncDatabase
 };
