@@ -60,5 +60,24 @@ module.exports = {
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
+  },
+
+  // Deposit funds into the authenticated user's wallet
+  async deposit(req, res) {
+    const { amount } = req.body;
+    try {
+      const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
+      if (!wallet) {
+        return res.status(404).json({ message: 'Wallet not found' });
+      }
+      if (typeof amount !== 'number' || amount <= 0) {
+        return res.status(400).json({ message: 'Deposit amount must be a positive number' });
+      }
+      wallet.balance = parseFloat(wallet.balance) + parseFloat(amount);
+      await wallet.save();
+      res.json({ wallet });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
   }
 };

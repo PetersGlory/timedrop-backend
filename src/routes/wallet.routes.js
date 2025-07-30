@@ -65,4 +65,14 @@ router.post('/', auth, walletController.createWallet);
  */
 router.put('/', auth, walletController.updateWallet);
 
+/**
+ * @route   POST /api/wallet/deposit
+ * @desc    Deposit funds into the authenticated user's wallet
+ * @access  Private
+ * @body    { amount: number }
+ * @returns { wallet: object }
+ */
+router.post('/deposit', auth, walletController.deposit);
+
+
 module.exports = router;
