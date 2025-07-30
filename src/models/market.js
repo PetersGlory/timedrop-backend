@@ -24,7 +24,7 @@ const Market = sequelize.define('Market', {
     allowNull: true
   },
   status:{
-    type: DataTypes.ENUM('Open', 'closed'),
+    type: DataTypes.ENUM('Open', 'closed', 'archieve'),
     defaultValue: 'Open'
   },
   startDate: {

@@ -1,6 +1,7 @@
 const Market = require('../models/market');
 const Category = require('../models/category');
 const { subHours, addHours } = require('date-fns');
+const { Op } = require('sequelize');
 
 module.exports = {
   // Get all markets
@@ -8,7 +9,11 @@ module.exports = {
   // Get all markets
   async getMarkets(req, res) {
     try {
-      const markets = await Market.findAll();
+      const markets = await Market.findAll({
+        where: {
+          status: { [Op.ne]: 'archieve' }
+        }
+      });
 
       // Map and format each market according to the required structure
       const formattedMarkets = markets.map(market => ({
