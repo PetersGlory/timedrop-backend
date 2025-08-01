@@ -16,7 +16,7 @@ module.exports = {
     }
   },
 
-  // Create a new order for the authenticated user
+  // Create a new order for the authenticated user, with orderPair logic
   async createOrder(req, res) {
     try {
       const { marketId, type, quantity, price } = req.body;
@@ -60,7 +60,34 @@ module.exports = {
       }
       // For SELL, you would check asset balance (not implemented here)
 
-      // Create the order according to order.js model
+      // Attempt to find a matching order for pairing
+      // Match: same market, same price, opposite type, status Open, orderPair is null or has less than 2 users, and not by this user
+      const oppositeType = type === 'BUY' ? 'SELL' : 'BUY';
+      let matchedOrder = await Order.findOne({
+        where: {
+          marketId,
+          price,
+          type: oppositeType,
+          status: 'Open',
+          userId: { $ne: req.user.id },
+          // orderPair is either null or has less than 2 users
+        }
+      });
+
+      let orderPair = null;
+
+      if (matchedOrder && (!matchedOrder.orderPair || matchedOrder.orderPair.length < 2)) {
+        // Pair with the matched order
+        orderPair = matchedOrder.orderPair ? [...matchedOrder.orderPair, req.user.id] : [matchedOrder.userId, req.user.id];
+        // Update the matched order's orderPair
+        matchedOrder.orderPair = orderPair;
+        await matchedOrder.save();
+      } else {
+        // No match found, create a new pair with only this user
+        orderPair = [req.user.id];
+      }
+
+      // Create the order according to order.js model, including orderPair
       const order = await Order.create({
         marketId,
         marketName: market.question || market.category || '', // fallback if marketName is not present
@@ -68,7 +95,8 @@ module.exports = {
         type,
         price,
         quantity,
-        status: 'Open'
+        status: 'Open',
+        orderPair
       });
 
       res.status(201).json({ success: true, order });

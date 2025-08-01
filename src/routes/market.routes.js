@@ -2,6 +2,17 @@ const express = require('express');
 const router = express.Router();
 const marketController = require('../controllers/market.controller');
 
+const auth = require('../middleware/auth');
+
+// Simple isAdmin middleware
+function isAdmin(req, res, next) {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'super_admin')) {
+    return next();
+  }
+  return res.status(403).json({ message: 'Forbidden: Admins only' });
+}
+
+
 /**
  * @swagger
  * /markets:
@@ -265,5 +276,86 @@ router.put('/categories/:id', marketController.updateCategory);
  *         description: Category not found
  */
 router.delete('/categories/:id', marketController.deleteCategory);
+
+/**
+ * @swagger
+ * /markets/resolve:
+ *   post:
+ *     tags: [Markets]
+ *     summary: Resolve a market and credit winners
+ *     description: >
+ *       Admin endpoint to resolve a market by specifying the result ('yes' or 'no'). This will credit the winners' wallets and close the market.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - marketId
+ *               - result
+ *             properties:
+ *               marketId:
+ *                 type: string
+ *                 description: The ID of the market to resolve
+ *               result:
+ *                 type: string
+ *                 enum: [yes, no]
+ *                 description: The result of the market ('yes' or 'no')
+ *     responses:
+ *       200:
+ *         description: Market resolved and winners credited
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 credited:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       userId:
+ *                         type: string
+ *                       amount:
+ *                         type: number
+ *                 marketId:
+ *                   type: string
+ *                 closed:
+ *                   type: boolean
+ *       400:
+ *         description: Invalid input or market already closed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       404:
+ *         description: Market not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ */
+router.post('/resolve', auth, isAdmin, marketController.resolveMarket);
+
 
 module.exports = router; 

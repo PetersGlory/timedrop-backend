@@ -2,6 +2,7 @@ const Market = require('../models/market');
 const Category = require('../models/category');
 const { subHours, addHours } = require('date-fns');
 const { Op } = require('sequelize');
+const { Order, Wallet } = require('../models');
 
 module.exports = {
   // Get all markets
@@ -159,5 +160,91 @@ module.exports = {
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  }
+  },
+
+
+  /**
+   * Admin endpoint to resolve a market and credit winners.
+   * @param {Request} req - Express request object
+   * @param {Response} res - Express response object
+   * 
+   * Expects:
+   *   req.body: {
+   *     marketId: string,
+   *     result: 'yes' | 'no'
+   *   }
+   * 
+   * Logic:
+   *   - Fetch all orders for the marketId.
+   *   - For each order, check if the order type matches the result ('yes' = 'BUY', 'no' = 'SELL').
+   *   - If orderPair has 2 users, both are checked for correctness.
+   *   - If orderPair has 1 user, check correctness and credit if correct.
+   *   - Credit the user's wallet with the order price if correct.
+   *   - Close the market after processing.
+   */
+  async resolveMarket(req, res) {
+    const { marketId, result } = req.body;
+    if (!marketId || !['yes', 'no'].includes(result)) {
+      return res.status(400).json({ message: "marketId and result ('yes' or 'no') are required." });
+    }
+
+    // Map result to order type
+    const correctOrderType = result === 'yes' ? 'BUY' : 'SELL';
+
+    try {
+      // Fetch the market
+      const market = await Market.findByPk(marketId);
+      if (!market) {
+        return res.status(404).json({ message: 'Market not found.' });
+      }
+      if (market.status === 'closed') {
+        return res.status(400).json({ message: 'Market already closed.' });
+      }
+
+      // Fetch all orders for this market
+      const orders = await Order.findAll({ where: { marketId } });
+
+      // Track credited users for reporting
+      const credited = [];
+
+      for (const order of orders) {
+        // Check if this order is a winning order
+        if (order.type === correctOrderType) {
+          // If orderPair is present and is an array
+          if (Array.isArray(order.orderPair) && order.orderPair.length > 0) {
+            for (const userId of order.orderPair) {
+              // Credit each user in the pair
+              const wallet = await Wallet.findOne({ where: { userId } });
+              if (wallet) {
+                wallet.balance = parseFloat(wallet.balance) + parseFloat(order.price);
+                await wallet.save();
+                credited.push({ userId, amount: order.price });
+              }
+            }
+          } else if (order.userId) {
+            // Single user order, credit if correct
+            const wallet = await Wallet.findOne({ where: { userId: order.userId } });
+            if (wallet) {
+              wallet.balance = parseFloat(wallet.balance) + parseFloat(order.price);
+              await wallet.save();
+              credited.push({ userId: order.userId, amount: order.price });
+            }
+          }
+        }
+      }
+
+      // Close the market
+      market.status = 'closed';
+      await market.save();
+
+      return res.json({
+        message: 'Market resolved and winners credited.',
+        credited,
+        marketId,
+        closed: true
+      });
+    } catch (error) {
+      return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  },
 }; 

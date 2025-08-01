@@ -27,6 +27,17 @@ const Order = sequelize.define('Order', {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false
   },
+  orderPair: {
+    type: DataTypes.ARRAY(DataTypes.UUID), // Array of user IDs (max 2)
+    allowNull: true,
+    validate: {
+      len: {
+        args: [0, 2],
+        msg: 'orderPair cannot contain more than 2 users'
+      }
+    },
+    comment: 'Pairs two users together by their IDs; should not exceed 2 users'
+  },
   quantity: {
     type: DataTypes.INTEGER,
     allowNull: false

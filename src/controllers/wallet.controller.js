@@ -113,4 +113,18 @@ module.exports = {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   },
+
+  // getting all banks from flutterwave
+  async getAllBanks(req, res){
+    try{
+      const userId = req.user.id;
+      if(!userId){
+        return res.status(404).json({ message: 'user not found' });
+      }
+      const banks = [];
+      return res.json(banks);
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  }
 };
