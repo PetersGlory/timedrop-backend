@@ -1,6 +1,10 @@
 const { Withdrawal } = require('../models');
 const Wallet = require('../models/wallet');
 
+// Flutterwave configuration
+const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
+const FLUTTERWAVE_BASE_URL = 'https://api.flutterwave.com/v3';
+
 module.exports = {
   // Get the wallet for the authenticated user
   async getWallet(req, res) {
@@ -84,33 +88,87 @@ module.exports = {
 
   // Withdraw funds from the authenticated user's wallet
   async withdraw(req, res) {
-    const { amount } = req.body;
     try {
+      const {
+        account_bank,
+        account_number,
+        amount,
+        narration,
+        currency = 'NGN',
+        reference,
+        callback_url,
+        debit_currency = 'NGN'
+      } = req.body;
+
+      // Validate required fields
+      if (!account_bank || !account_number || !amount || !reference) {
+        return res.status(400).json({
+          error: 'Missing required fields: account_bank, account_number, amount, reference'
+        });
+      }
+
+      // Check wallet and balance
       const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
       if (!wallet) {
         return res.status(404).json({ message: 'Wallet not found' });
       }
+      const currentBalance = parseFloat(wallet.balance);
       if (typeof amount !== 'number' || amount <= 0) {
         return res.status(400).json({ message: 'Withdrawal amount must be a positive number' });
       }
-      const currentBalance = parseFloat(wallet.balance);
       if (currentBalance < amount) {
         return res.status(400).json({ message: 'Insufficient funds' });
       }
+
+      // Prepare payout data for Flutterwave
+      const payoutData = {
+        account_bank,
+        account_number,
+        amount,
+        narration: narration || 'Payout from your app',
+        currency,
+        reference,
+        callback_url,
+        debit_currency
+      };
+
+      // Initiate payout via Flutterwave
+      const response = await axios.post(
+        `${FLUTTERWAVE_BASE_URL}/transfers`,
+        payoutData,
+        {
+          headers: {
+            'Authorization': `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Deduct from wallet and record withdrawal if payout is successful
       wallet.balance = currentBalance - parseFloat(amount);
       await wallet.save();
-      // Record the withdrawal in the Withdrawal model
+
       await Withdrawal.create({
         userId: req.user.id,
         amount: parseFloat(amount),
         currency: wallet.currency || 'NGN',
         status: 'pending',
         processedAt: new Date(),
-        reason: null
+        reason: narration || null,
+        reference: reference
       });
-      res.json({ wallet });
+
+      res.json({
+        success: true,
+        data: response.data
+      });
+
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      console.error('Payout error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({
+        success: false,
+        error: error.response?.data?.message || 'Payout failed'
+      });
     }
   },
 
@@ -121,10 +179,97 @@ module.exports = {
       if(!userId){
         return res.status(404).json({ message: 'user not found' });
       }
-      const banks = [];
-      return res.json(banks);
+      const { country } = req.params; // e.g., 'NG' for Nigeria
+
+      const response = await axios.get(
+        `${FLUTTERWAVE_BASE_URL}/banks/${country}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${FLUTTERWAVE_SECRET_KEY}`
+          }
+        }
+      );
+
+      res.json({
+        success: true,
+        data: response.data
+      });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  }
+  },
+
+  // Verify bank account details using Paystack (not Flutterwave)
+  async verifyBankAccount(req, res) {
+    try {
+      const { account_number, account_bank } = req.body;
+
+      if (!account_number || !account_bank) {
+        return res.status(400).json({
+          error: 'account_number and account_bank are required'
+        });
+      }
+
+      // Paystack API details
+      const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+      const PAYSTACK_BASE_URL = 'https://api.paystack.co';
+
+      // Make request to Paystack to resolve account number
+      const response = await axios.get(
+        `${PAYSTACK_BASE_URL}/bank/resolve`,
+        {
+          params: {
+            account_number,
+            bank_code: account_bank
+          },
+          headers: {
+            'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      res.json({
+        success: true,
+        data: response.data
+      });
+
+    } catch (error) {
+      console.error('Account verification error:', error.response?.data || error.message);
+      res.status(error.response?.status || 500).json({
+        success: false,
+        error: error.response?.data?.message || 'Account verification failed'
+      });
+    }
+  },
+
+  // Webhook handler for payout notifications
+  async payoutWebhook(req, res) {
+    try {
+      const hash = req.headers['verif-hash'];
+
+      if (!hash) {
+        return res.status(401).json({ error: 'No hash provided' });
+      }
+
+      const secretHash = process.env.FLUTTERWAVE_SECRET_HASH;
+      if (hash !== secretHash) {
+        return res.status(401).json({ error: 'Invalid hash' });
+      }
+
+      const payload = req.body;
+
+      // Handle the webhook payload
+      console.log('Payout webhook received:', payload);
+
+      // TODO: Process the payout status update here
+      // For example: update your database, send notifications, etc.
+
+      res.status(200).json({ status: 'success' });
+
+    } catch (error) {
+      console.error('Webhook error:', error);
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  },
 };

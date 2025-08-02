@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const walletController = require('../controllers/wallet.controller');
 const auth = require('../middleware/auth');
+const verifyFlutterwaveKey = require('../middleware/flutterwaveValidation');
 
 /**
  * @swagger
@@ -83,6 +84,38 @@ router.post('/deposit', auth, walletController.deposit);
  * @returns { withdrawal: object }
  */
 router.post('/withdraw', auth, walletController.withdraw);
+
+
+
+/**
+ * @route   GET /api/wallet/banks/:country
+ * @desc    Retrieve a list of all banks for a specified country using Flutterwave
+ * @access  Private
+ * @param   {string} country - The country code (e.g., 'NG' for Nigeria)
+ * @returns { data: object }
+ * @response
+ *   200: { success: true, data: [ ...banks ] }
+ *   401: Unauthorized - Authentication required
+ *   404: User not found
+ *   500: Server error
+ */
+router.get('/banks/:country', auth,verifyFlutterwaveKey, walletController.getAllBanks);
+
+/**
+ * @route   POST /api/wallet/verify-account
+ * @desc    Verify bank account details using Paystack
+ * @access  Private
+ * @body    { account_number: string, account_bank: string }
+ * @returns { data: object }
+ * @response
+ *   200: { success: true, data: { ...accountDetails } }
+ *   400: account_number and account_bank are required
+ *   401: Unauthorized - Authentication required
+ *   500: Account verification failed or server error
+ */
+router.post('/verify-account', auth,verifyFlutterwaveKey, walletController.verifyBankAccount);
+
+
 
 
 
