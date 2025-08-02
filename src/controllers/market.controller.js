@@ -208,26 +208,70 @@ module.exports = {
       const credited = [];
 
       for (const order of orders) {
-        // Check if this order is a winning order
-        if (order.type === correctOrderType) {
-          // If orderPair is present and is an array
-          if (Array.isArray(order.orderPair) && order.orderPair.length > 0) {
-            for (const userId of order.orderPair) {
-              // Credit each user in the pair
-              const wallet = await Wallet.findOne({ where: { userId } });
-              if (wallet) {
-                wallet.balance = parseFloat(wallet.balance) + parseFloat(order.price);
-                await wallet.save();
-                credited.push({ userId, amount: order.price });
+        // Only process orders with a pair (2 users)
+        if (Array.isArray(order.orderPair) && order.orderPair.length === 2) {
+          // Find the paired order (the other order in the pair)
+          const pairedOrders = orders.filter(
+            o =>
+              o.id !== order.id &&
+              Array.isArray(o.orderPair) &&
+              o.orderPair.length === 2 &&
+              JSON.stringify(o.orderPair) === JSON.stringify(order.orderPair)
+          );
+
+          // Only process once per pair (to avoid double crediting)
+          // Only process if this order's userId is the lower of the two (arbitrary tie-breaker)
+          if (order.userId === Math.min(...order.orderPair)) {
+            // Find both orders in the pair
+            const [orderA, orderB] = [
+              order,
+              pairedOrders.length > 0 ? pairedOrders[0] : null
+            ];
+
+            // Defensive: both orders must exist
+            if (orderA && orderB) {
+              // Determine which user is BUY and which is SELL
+              let buyOrder, sellOrder;
+              if (orderA.type === 'BUY') {
+                buyOrder = orderA;
+                sellOrder = orderB;
+              } else {
+                buyOrder = orderB;
+                sellOrder = orderA;
+              }
+
+              // If result is 'yes' (BUY), credit the BUY user; if 'no' (SELL), credit the SELL user
+              let winnerOrder = null;
+              if (correctOrderType === 'BUY') {
+                winnerOrder = buyOrder;
+              } else {
+                winnerOrder = sellOrder;
+              }
+
+              if (winnerOrder && winnerOrder.userId) {
+                // Deduct 10% from order.price before crediting
+                const creditAmount = parseFloat(winnerOrder.price) * 0.9;
+                const wallet = await Wallet.findOne({ where: { userId: winnerOrder.userId } });
+                if (wallet) {
+                  wallet.balance = parseFloat(wallet.balance) + creditAmount;
+                  await wallet.save();
+                  credited.push({ userId: winnerOrder.userId, amount: creditAmount });
+                }
               }
             }
-          } else if (order.userId) {
-            // Single user order, credit if correct
+          }
+        } else if (
+          // Single user order (no pair)
+          Array.isArray(order.orderPair) && order.orderPair.length === 1
+        ) {
+          // If this order is the correct type, credit the user (with 10% deduction)
+          if (order.type === correctOrderType) {
+            const creditAmount = parseFloat(order.price) * 0.9;
             const wallet = await Wallet.findOne({ where: { userId: order.userId } });
             if (wallet) {
-              wallet.balance = parseFloat(wallet.balance) + parseFloat(order.price);
+              wallet.balance = parseFloat(wallet.balance) + creditAmount;
               await wallet.save();
-              credited.push({ userId: order.userId, amount: order.price });
+              credited.push({ userId: order.userId, amount: creditAmount });
             }
           }
         }
