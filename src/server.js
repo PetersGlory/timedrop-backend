@@ -1,4 +1,6 @@
 
+require('dotenv').config();
+
 const app = require('./app');
 const { sequelize, syncDatabase } = require('./models');
 
