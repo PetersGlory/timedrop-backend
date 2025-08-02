@@ -1,8 +1,7 @@
+const { Op } = require('sequelize');
 const { Wallet, Market } = require('../models');
 const Order = require('../models/order');
 const User = require('../models/user'); // Import User model
-const { Op } = require('sequelize');
-
 module.exports = {
   // Get all orders for the authenticated user
   async getOrders(req, res) {
