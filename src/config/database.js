@@ -1,11 +1,11 @@
 const { Sequelize } = require('sequelize');
 
 const sequelize = new Sequelize({
-  database: process.env.DB_NAME || "defaultdb",
-  username: process.env.DB_USER || "doadmin",
-  password: process.env.DB_PASSWORD || "AVNS_-vhnKgXc0TJqtt3mwwX",
-  host: process.env.DB_HOST || "timedroplive-do-user-24108218-0.l.db.ondigitalocean.com",
-  port: process.env.DB_PORT || "25060",
+  database: process.env.DB_NAME,
+  username: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
   dialect: 'mysql',
   dialectOptions: {
     ssl: {
