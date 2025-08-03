@@ -1,5 +1,5 @@
-const { Withdrawal } = require('../models');
-const Wallet = require('../models/wallet');
+const { default: axios } = require('axios');
+const { Withdrawal, Wallet } = require('../models');
 
 // Flutterwave configuration
 const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
