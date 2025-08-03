@@ -228,7 +228,7 @@ module.exports = {
             // Find the order with the correct type
             const winnerOrder = pairOrders.find(o => o.type === correctOrderType);
             if (winnerOrder) {
-              const creditAmount = parseFloat(winnerOrder.price) * 0.9;
+              const creditAmount = parseFloat(winnerOrder.price) + (parseFloat(winnerOrder.price) * 0.9);
               const wallet = await Wallet.findOne({ where: { userId: winnerOrder.userId } });
               if (wallet) {
                 wallet.balance = parseFloat(wallet.balance) + creditAmount;
@@ -243,7 +243,7 @@ module.exports = {
         ) {
           // If this order is the correct type, credit the user (with 10% deduction)
           if (order.type === correctOrderType) {
-            const creditAmount = parseFloat(order.price) * 0.9;
+            const creditAmount = parseFloat(order.price);
             const wallet = await Wallet.findOne({ where: { userId: order.userId } });
             if (wallet) {
               wallet.balance = parseFloat(wallet.balance) + creditAmount;
