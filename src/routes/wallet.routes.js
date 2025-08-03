@@ -99,7 +99,7 @@ router.post('/withdraw', auth, walletController.withdraw);
  *   404: User not found
  *   500: Server error
  */
-router.get('/banks/:country', auth,verifyFlutterwaveKey, walletController.getAllBanks);
+router.get('/banks/:country', auth, walletController.getAllBanks);
 
 /**
  * @route   POST /api/wallet/verify-account
@@ -113,7 +113,7 @@ router.get('/banks/:country', auth,verifyFlutterwaveKey, walletController.getAll
  *   401: Unauthorized - Authentication required
  *   500: Account verification failed or server error
  */
-router.post('/verify-account', auth,verifyFlutterwaveKey, walletController.verifyBankAccount);
+router.post('/verify-account', auth, walletController.verifyBankAccount);
 
 
 
