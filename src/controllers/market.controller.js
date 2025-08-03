@@ -206,57 +206,34 @@ module.exports = {
 
       // Track credited users for reporting
       const credited = [];
+      const processedPairs = new Set();
 
       for (const order of orders) {
-        // Only process orders with a pair (2 users)
+        // Handle paired orders (2 users)
         if (Array.isArray(order.orderPair) && order.orderPair.length === 2) {
-          // Find the paired order (the other order in the pair)
-          const pairedOrders = orders.filter(
+          // Create a unique key for the pair to avoid double processing
+          const pairKey = order.orderPair.slice().sort((a, b) => a - b).join('-');
+          if (processedPairs.has(pairKey)) continue;
+          processedPairs.add(pairKey);
+
+          // Find both orders in the pair
+          const pairOrders = orders.filter(
             o =>
-              o.id !== order.id &&
               Array.isArray(o.orderPair) &&
               o.orderPair.length === 2 &&
-              JSON.stringify(o.orderPair) === JSON.stringify(order.orderPair)
+              JSON.stringify(o.orderPair.slice().sort((a, b) => a - b)) === JSON.stringify(order.orderPair.slice().sort((a, b) => a - b))
           );
 
-          // Only process once per pair (to avoid double crediting)
-          // Only process if this order's userId is the lower of the two (arbitrary tie-breaker)
-          if (order.userId === Math.min(...order.orderPair)) {
-            // Find both orders in the pair
-            const [orderA, orderB] = [
-              order,
-              pairedOrders.length > 0 ? pairedOrders[0] : null
-            ];
-
-            // Defensive: both orders must exist
-            if (orderA && orderB) {
-              // Determine which user is BUY and which is SELL
-              let buyOrder, sellOrder;
-              if (orderA.type === 'BUY') {
-                buyOrder = orderA;
-                sellOrder = orderB;
-              } else {
-                buyOrder = orderB;
-                sellOrder = orderA;
-              }
-
-              // If result is 'yes' (BUY), credit the BUY user; if 'no' (SELL), credit the SELL user
-              let winnerOrder = null;
-              if (correctOrderType === 'BUY') {
-                winnerOrder = buyOrder;
-              } else {
-                winnerOrder = sellOrder;
-              }
-
-              if (winnerOrder && winnerOrder.userId) {
-                // Deduct 10% from order.price before crediting
-                const creditAmount = parseFloat(winnerOrder.price) * 0.9;
-                const wallet = await Wallet.findOne({ where: { userId: winnerOrder.userId } });
-                if (wallet) {
-                  wallet.balance = parseFloat(wallet.balance) + creditAmount;
-                  await wallet.save();
-                  credited.push({ userId: winnerOrder.userId, amount: creditAmount });
-                }
+          if (pairOrders.length === 2) {
+            // Find the order with the correct type
+            const winnerOrder = pairOrders.find(o => o.type === correctOrderType);
+            if (winnerOrder) {
+              const creditAmount = parseFloat(winnerOrder.price) * 0.9;
+              const wallet = await Wallet.findOne({ where: { userId: winnerOrder.userId } });
+              if (wallet) {
+                wallet.balance = parseFloat(wallet.balance) + creditAmount;
+                await wallet.save();
+                credited.push({ userId: winnerOrder.userId, amount: creditAmount });
               }
             }
           }
@@ -280,6 +257,10 @@ module.exports = {
       // Close the market
       market.status = 'closed';
       await market.save();
+      orders.forEach(async order => {
+        order.status = 'Filled';
+        await order.save();
+      });
 
       return res.json({
         message: 'Market resolved and winners credited.',
