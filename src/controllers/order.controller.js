@@ -104,6 +104,7 @@ async createOrder(req, res) {
       
       // Update the matched order's orderPair
       matchedOrder.orderPair = orderPair;
+      matchedOrder.status = 'Paired';
       await matchedOrder.save();
       
       isPaired = true;
@@ -127,7 +128,7 @@ async createOrder(req, res) {
       type,
       price,
       quantity,
-      status: 'Open',
+      status: 'Paired',
       orderPair
     });
 
