@@ -21,6 +21,7 @@ module.exports = {
         id: String(market.id),
         category: market.category || 'General',
         question: market.question || market.title || '',
+        status: market.status || 'Open',
         image: {
           url: market.image.url || 'https://placehold.co/600x400.png',
           hint: market.image.hint || 'stock market',
@@ -54,6 +55,7 @@ module.exports = {
         id: String(market.id),
         category: market.category || 'General',
         question: market.question || market.title || '',
+        status: market.status || 'Open',
         image: {
           url: market.image.url || 'https://placehold.co/600x400.png',
           hint: market.image.hint || 'stock market',
