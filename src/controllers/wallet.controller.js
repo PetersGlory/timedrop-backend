@@ -136,6 +136,7 @@ module.exports = {
         narration,
         currency = 'NGN',
         callback_url,
+        transaction_fee,
         debit_currency = 'NGN'
       } = req.body;
 
@@ -196,7 +197,7 @@ module.exports = {
       }
 
       // Deduct from wallet and record withdrawal if payout is successful
-      wallet.balance = currentBalance - parseFloat(amount);
+      wallet.balance = currentBalance - (parseFloat(amount) + parseFloat(transaction_fee));
       await wallet.save();
 
       // Use the transfer id and status from Flutterwave for record
@@ -222,6 +223,7 @@ module.exports = {
         status: transferData.status || 'pending',
         description: narration || 'Wallet withdrawal',
         reference: transferData.reference || reference,
+        transaction_fee: transaction_fee,
         metadata: {
           flutterwaveTransferId: transferData.id || null,
           bank_name: transferData.bank_name || null,

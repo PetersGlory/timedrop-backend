@@ -19,6 +19,10 @@ const Transaction = sequelize.define('Transaction', {
     type: DataTypes.DECIMAL(20, 2),
     allowNull: false
   },
+  transaction_fee: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   status: {
     type: DataTypes.ENUM('pending', 'completed', 'failed', 'cancelled'),
     allowNull: false,
