@@ -50,10 +50,10 @@ async createOrder(req, res) {
     // Calculate total cost for BUY, or check asset for SELL
     const totalCost = parseFloat(price);
 
-    if (type === 'BUY') {
-      if (parseFloat(wallet.balance) < totalCost) {
-        return res.status(400).json({ message: 'Insufficient wallet balance' });
-      }
+    if (parseFloat(wallet.balance) < totalCost) {
+      return res.status(400).json({ message: 'Insufficient wallet balance' });
+    }
+    if (type !== null) {
       // Deduct from wallet
       wallet.balance = (parseFloat(wallet.balance) - totalCost).toFixed(8);
       await wallet.save();
