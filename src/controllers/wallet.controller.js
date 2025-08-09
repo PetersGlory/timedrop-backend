@@ -1,5 +1,5 @@
 const { default: axios } = require('axios');
-const { Withdrawal, Wallet } = require('../models');
+const { Withdrawal, Wallet, Transaction } = require('../models');
 
 // Flutterwave configuration
 const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
@@ -69,17 +69,57 @@ module.exports = {
 
   // Deposit funds into the authenticated user's wallet
   async deposit(req, res) {
-    const { amount } = req.body;
+    // Expecting the frontend to send the following structure:
+    // {
+    //   amount: (numericAmount - updatedAmount),
+    //   narration: 'Wallet deposit via Flutterwave',
+    //   currency: 'NGN',
+    //   reference: response.transaction_id,
+    //   payment_method: response.meta.payment_method,
+    //   tx_ref: response.tx_ref,
+    //   status: response.status,
+    // }
+    const {
+      amount,
+      narration,
+      currency = 'NGN',
+      reference,
+      payment_method,
+      tx_ref,
+      status
+    } = req.body;
+
     try {
+      // Validate amount
+      if (typeof amount !== 'number' || amount <= 0) {
+        return res.status(400).json({ message: 'Deposit amount must be a positive number' });
+      }
+
+      // Find wallet
       const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
       if (!wallet) {
         return res.status(404).json({ message: 'Wallet not found' });
       }
-      if (typeof amount !== 'number' || amount <= 0) {
-        return res.status(400).json({ message: 'Deposit amount must be a positive number' });
-      }
+
+      // Update wallet balance
       wallet.balance = parseFloat(wallet.balance) + parseFloat(amount);
       await wallet.save();
+
+      // Create a transaction record
+      await Transaction.create({
+        type: 'deposit',
+        amount,
+        status: status || 'completed',
+        description: narration || 'Wallet deposit',
+        reference: reference || tx_ref,
+        metadata: {
+          payment_method,
+          tx_ref,
+          currency,
+        },
+        userId: req.user.id
+      });
+
       res.json({ wallet });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
@@ -160,7 +200,8 @@ module.exports = {
       await wallet.save();
 
       // Use the transfer id and status from Flutterwave for record
-      const transferData = fwData.data.data || {};
+      // Normalize transferData to match the expected structure from Flutterwave
+      const transferData = fwData.data || {};
       await Withdrawal.create({
         userId: req.user.id,
         amount: parseFloat(amount),
@@ -172,6 +213,22 @@ module.exports = {
         flutterwaveTransferId: transferData.id || null,
         bank_name: transferData.bank_name || null,
         account_number: transferData.account_number || null
+      });
+
+      // Add transaction section after withdrawal is created
+      await Transaction.create({
+        type: 'withdrawal',
+        amount: parseFloat(amount),
+        status: transferData.status || 'pending',
+        description: narration || 'Wallet withdrawal',
+        reference: transferData.reference || reference,
+        metadata: {
+          flutterwaveTransferId: transferData.id || null,
+          bank_name: transferData.bank_name || null,
+          account_number: transferData.account_number || null,
+          currency: wallet.currency || 'NGN'
+        },
+        userId: req.user.id
       });
 
       res.json({
@@ -297,6 +354,24 @@ module.exports = {
     } catch (error) {
       console.error('Get withdrawals error:', error);
       res.status(500).json({ success: false, error: 'Failed to fetch withdrawals' });
+    }
+  },
+
+  // Get all transactions for the authenticated user
+  async getTransactions(req, res) {
+    try {
+      const userId = req.user.id;
+
+      // Fetch all transactions for this userId
+      const transactions = await Transaction.findAll({
+        where: { userId },
+        order: [['created_at', 'DESC']]
+      });
+
+      res.json({ success: true, transactions });
+    } catch (error) {
+      console.error('Get transactions error:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch transactions' });
     }
   },
 };

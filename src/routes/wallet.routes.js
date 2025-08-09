@@ -129,6 +129,20 @@ router.post('/verify-account', auth, walletController.verifyBankAccount);
 router.get('/withdrawals', auth, walletController.getWithdrawals);
 
 
+/**
+ * @route   GET /api/wallet/transactions
+ * @desc    Get all transaction history for the authenticated user
+ * @access  Private
+ * @returns { transactions: array }
+ * @response
+ *   200: { success: true, transactions: [ ... ] }
+ *   401: Unauthorized - Authentication required
+ *   500: Failed to fetch transactions
+ */
+router.get('/transactions', auth, walletController.getTransactions);
+
+
+
 
 
 
