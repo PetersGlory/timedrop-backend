@@ -32,6 +32,22 @@ const Withdrawal = sequelize.define('Withdrawal', {
   reason: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  reference: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  flutterwaveTransferId: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  bank_name: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  account_number: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 }, {
   timestamps: true

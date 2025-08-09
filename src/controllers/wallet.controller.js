@@ -102,10 +102,10 @@ module.exports = {
       // Validate required fields
       if (!account_bank || !account_number || !amount) {
         return res.status(400).json({
-          error: 'Missing required fields: account_bank, account_number, amount, reference'
+          error: 'Missing required fields: account_bank, account_number, amount'
         });
       }
-      
+
       // Generate a unique reference for the withdrawal (e.g., using timestamp and user id)
       const reference = `TD-${req.user.id}-${Date.now()}-WD`;
 
@@ -127,7 +127,7 @@ module.exports = {
         account_bank,
         account_number,
         amount,
-        narration: narration || 'Payout from your app',
+        narration: narration || 'Wallet withdrawal',
         currency,
         reference,
         callback_url,
@@ -146,30 +146,45 @@ module.exports = {
         }
       );
 
+      // Check Flutterwave response for success and status
+      const fwData = response.data;
+      if (!fwData || !fwData.success || !fwData.data || fwData.data.status !== 'success') {
+        return res.status(500).json({
+          success: false,
+          error: fwData?.data?.message || fwData?.message || 'Payout failed'
+        });
+      }
+
       // Deduct from wallet and record withdrawal if payout is successful
       wallet.balance = currentBalance - parseFloat(amount);
       await wallet.save();
 
+      // Use the transfer id and status from Flutterwave for record
+      const transferData = fwData.data.data || {};
       await Withdrawal.create({
         userId: req.user.id,
         amount: parseFloat(amount),
         currency: wallet.currency || 'NGN',
-        status: 'pending',
+        status: transferData.status || 'pending',
         processedAt: new Date(),
         reason: narration || null,
-        reference: reference
+        reference: transferData.reference || reference,
+        flutterwaveTransferId: transferData.id || null,
+        bank_name: transferData.bank_name || null,
+        account_number: transferData.account_number || null
       });
 
       res.json({
         success: true,
-        data: response.data
+        message: fwData.data.message || 'Transfer Queued Successfully',
+        data: transferData
       });
 
     } catch (error) {
       console.error('Payout error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({
         success: false,
-        error: error.response?.data?.message || 'Payout failed'
+        error: error.response?.data?.message || error.message || 'Payout failed'
       });
     }
   },
