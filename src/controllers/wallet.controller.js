@@ -210,9 +210,13 @@ module.exports = {
         });
       }
 
-      // Paystack API details 
-      const response = await axios.get(
+      // Flutterwave account resolve endpoint expects params as query string
+      const response = await axios.post(
         `${FLUTTERWAVE_BASE_URL}/accounts/resolve`,
+        {
+          account_number,
+          account_bank
+        },
         {
           headers: {
             'Authorization': `Bearer ${FLUTTERWAVE_SECRET_KEY}`
