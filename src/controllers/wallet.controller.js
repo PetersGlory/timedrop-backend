@@ -210,21 +210,12 @@ module.exports = {
         });
       }
 
-      // Paystack API details
-      const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
-      const PAYSTACK_BASE_URL = 'https://api.paystack.co';
-
-      // Make request to Paystack to resolve account number
+      // Paystack API details 
       const response = await axios.get(
-        `${PAYSTACK_BASE_URL}/bank/resolve`,
+        `${FLUTTERWAVE_BASE_URL}/accounts/resolve`,
         {
-          params: {
-            account_number,
-            bank_code: account_bank
-          },
           headers: {
-            'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${FLUTTERWAVE_SECRET_KEY}`
           }
         }
       );
