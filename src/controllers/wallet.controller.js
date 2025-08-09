@@ -284,4 +284,19 @@ module.exports = {
       res.status(500).json({ error: 'Webhook processing failed' });
     }
   },
+
+  // Get all withdrawals for the authenticated user
+  async getWithdrawals(req, res) {
+    try {
+      const userId = req.user.id;
+      const withdrawals = await Withdrawal.findAll({
+        where: { userId },
+        order: [['createdAt', 'DESC']]
+      });
+      res.json({ success: true, withdrawals });
+    } catch (error) {
+      console.error('Get withdrawals error:', error);
+      res.status(500).json({ success: false, error: 'Failed to fetch withdrawals' });
+    }
+  },
 };

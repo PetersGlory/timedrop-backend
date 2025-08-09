@@ -116,6 +116,20 @@ router.get('/banks/:country', auth, walletController.getAllBanks);
 router.post('/verify-account', auth, walletController.verifyBankAccount);
 
 
+/**
+ * @route   GET /api/wallet/withdrawals
+ * @desc    Get all withdrawal history for the authenticated user
+ * @access  Private
+ * @returns { withdrawals: array }
+ * @response
+ *   200: { success: true, withdrawals: [ ... ] }
+ *   401: Unauthorized - Authentication required
+ *   500: Failed to fetch withdrawals
+ */
+router.get('/withdrawals', auth, walletController.getWithdrawals);
+
+
+
 
 
 
