@@ -95,17 +95,19 @@ module.exports = {
         amount,
         narration,
         currency = 'NGN',
-        reference,
         callback_url,
         debit_currency = 'NGN'
       } = req.body;
 
       // Validate required fields
-      if (!account_bank || !account_number || !amount || !reference) {
+      if (!account_bank || !account_number || !amount) {
         return res.status(400).json({
           error: 'Missing required fields: account_bank, account_number, amount, reference'
         });
       }
+      
+      // Generate a unique reference for the withdrawal (e.g., using timestamp and user id)
+      const reference = `TD-${req.user.id}-${Date.now()}-WD`;
 
       // Check wallet and balance
       const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
