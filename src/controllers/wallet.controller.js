@@ -159,7 +159,7 @@ module.exports = {
       if (typeof amount !== 'number' || amount <= 0) {
         return res.status(400).json({ message: 'Withdrawal amount must be a positive number' });
       }
-      if (currentBalance < amount) {
+      if (currentBalance < (parseFloat(amount) + parseFloat(transaction_fee))) {
         return res.status(400).json({ message: 'Insufficient funds' });
       }
 
