@@ -476,8 +476,37 @@ module.exports = {
       if (status) {
         where.status = status;
       }
+      // Get all withdrawals
       const withdrawals = await Withdrawal.findAll({ where, order: [['createdAt', 'DESC']] });
-      res.json({ withdrawals });
+
+      // Collect all userIds from withdrawals
+      const userIds = withdrawals
+        .map(w => w.userId)
+        .filter(id => !!id);
+
+      // Fetch users in bulk
+      let usersMap = {};
+      if (userIds.length > 0) {
+        const users = await User.findAll({
+          where: { id: userIds },
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        });
+        usersMap = users.reduce((acc, user) => {
+          acc[user.id] = user.toJSON();
+          return acc;
+        }, {});
+      }
+
+      // Attach user info to each withdrawal
+      const formattedWithdrawals = withdrawals.map(w => {
+        const withdrawalObj = w.toJSON();
+        return {
+          ...withdrawalObj,
+          user: withdrawalObj.userId ? usersMap[withdrawalObj.userId] || null : null
+        };
+      });
+
+      res.json({ withdrawals: formattedWithdrawals });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -495,7 +524,7 @@ module.exports = {
       let user = null;
       if (withdrawal.userId) {
         user = await User.findByPk(withdrawal.userId, {
-          attributes: ['id', 'firstName', 'lastName', 'email']
+          attributes: ['id', 'firstName', 'lastName']
         });
       }
 
