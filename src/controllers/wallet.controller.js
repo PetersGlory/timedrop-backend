@@ -221,7 +221,7 @@ module.exports = {
       await Transaction.create({
         type: 'withdrawal',
         amount: parseFloat(amount),
-        status: transferData.status || 'pending',
+        status: transferData.status == "success" ? "completed" : 'pending',
         description: narration || 'Wallet withdrawal',
         reference: transferData.reference || reference,
         transaction_fee: transaction_fee,
