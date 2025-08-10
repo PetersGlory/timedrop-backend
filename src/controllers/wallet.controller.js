@@ -155,11 +155,19 @@ module.exports = {
       if (!wallet) {
         return res.status(404).json({ message: 'Wallet not found' });
       }
-      const currentBalance = parseFloat(wallet.balance);
-      if (typeof amount !== 'number' || amount <= 0) {
+
+      // Ensure amount and transaction_fee are numbers
+      const withdrawalAmount = Number(amount);
+      const fee = Number(transaction_fee) || 0;
+      const currentBalance = Number(wallet.balance);
+
+      if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
         return res.status(400).json({ message: 'Withdrawal amount must be a positive number' });
       }
-      if (currentBalance < (parseFloat(amount) + parseFloat(transaction_fee))) {
+      if (isNaN(fee) || fee < 0) {
+        return res.status(400).json({ message: 'Transaction fee must be a non-negative number' });
+      }
+      if (currentBalance < (withdrawalAmount + fee)) {
         return res.status(400).json({ message: 'Insufficient funds' });
       }
 
@@ -167,7 +175,7 @@ module.exports = {
       const payoutData = {
         account_bank,
         account_number,
-        amount,
+        amount: withdrawalAmount,
         narration: narration || 'Wallet withdrawal',
         currency,
         reference,
@@ -198,7 +206,9 @@ module.exports = {
       }
 
       // Deduct from wallet and record withdrawal if payout is successful
-      wallet.balance = currentBalance - (parseFloat(amount) + parseFloat(transaction_fee));
+      // Use toFixed to avoid floating point issues, but store as string for DB decimal
+      const newBalance = (currentBalance - (withdrawalAmount + fee)).toFixed(2);
+      wallet.balance = newBalance;
       await wallet.save();
 
       // Use the transfer id and status from Flutterwave for record
@@ -206,7 +216,7 @@ module.exports = {
       const transferData = fwData.data || {};
       await Withdrawal.create({
         userId: req.user.id,
-        amount: parseFloat(amount),
+        amount: withdrawalAmount,
         currency: wallet.currency || 'NGN',
         status: transferData.status == "success" ? "completed" : 'pending',
         processedAt: new Date(),
@@ -220,11 +230,11 @@ module.exports = {
       // Add transaction section after withdrawal is created
       await Transaction.create({
         type: 'withdrawal',
-        amount: parseFloat(amount),
+        amount: withdrawalAmount,
         status: transferData.status == "success" ? "completed" : 'pending',
         description: narration || 'Wallet withdrawal',
         reference: transferData.reference || reference,
-        transaction_fee: transaction_fee,
+        transaction_fee: fee,
         metadata: {
           flutterwaveTransferId: transferData.id || null,
           bank_name: transferData.bank_name || null,
