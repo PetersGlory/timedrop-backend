@@ -14,7 +14,7 @@ module.exports = {
         where: {
           status: { [Op.ne]: 'archieve' }
         },
-        order: [['created_at', 'DESC']]
+        order: [['createdAt', 'DESC']]
       });
 
       // Map and format each market according to the required structure
