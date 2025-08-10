@@ -2,7 +2,7 @@ const Market = require('../models/market');
 const Category = require('../models/category');
 const { subHours, addHours } = require('date-fns');
 const { Op } = require('sequelize');
-const { Order, Wallet } = require('../models');
+const { Order, Wallet, Transaction } = require('../models');
 
 module.exports = {
   // Get all markets
@@ -237,6 +237,24 @@ module.exports = {
                 wallet.balance = parseFloat(wallet.balance) + creditAmount;
                 await wallet.save();
                 credited.push({ userId: winnerOrder.userId, amount: creditAmount });
+
+                // Add transaction history for the credited user
+                await Transaction.create({
+                  userId: winnerOrder.userId,
+                  type: 'trade',
+                  amount: creditAmount,
+                  transaction_fee: (parseFloat(winnerOrder.price) * 0.1),
+                  status: 'completed',
+                  description: `Market resolved: ${marketId}, pair win`,
+                  reference: `market:${marketId}`,
+                  metadata: {
+                    orderId: winnerOrder.id,
+                    marketId: marketId,
+                    result: result,
+                    credited: true,
+                    pair: winnerOrder.orderPair
+                  }
+                });
               }
             }
           }
@@ -252,6 +270,24 @@ module.exports = {
               wallet.balance = parseFloat(wallet.balance) + creditAmount;
               await wallet.save();
               credited.push({ userId: order.userId, amount: creditAmount });
+
+              // Add transaction history for the credited user
+              await Transaction.create({
+                userId: order.userId,
+                type: 'trade',
+                amount: creditAmount,
+                transaction_fee: null,
+                status: 'completed',
+                description: `Market resolved: ${marketId}, solo win`,
+                reference: `market:${marketId}`,
+                metadata: {
+                  orderId: order.id,
+                  marketId: marketId,
+                  result: result,
+                  credited: true,
+                  pair: order.orderPair
+                }
+              });
             }
           }
         }

@@ -847,6 +847,45 @@ router.delete('/bookmarks/:id', auth, isAdmin, adminController.deleteBookmark);
  */
 router.get('/recent-activities', auth, isAdmin, adminController.getRecentActivities);
 
+/**
+ * @swagger
+ * /admin/revenue-stats:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Get platform revenue and trading volume statistics
+ *     description: >
+ *       Retrieve platform revenue and trading volume statistics, including:
+ *         - All-time revenue (sum of transaction fees for all completed 'trade' transactions)
+ *         - All-time trading volume (sum of amount for all completed 'trade' transactions)
+ *         - Today's revenue (sum of transaction fees for completed 'trade' transactions created today)
+ *       Admin access only.
+ *     operationId: adminGetRevenueStats
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Revenue and trading volume statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalRevenue:
+ *                   type: number
+ *                   format: float
+ *                   description: All-time total revenue (sum of transaction fees)
+ *                 totalVolume:
+ *                   type: number
+ *                   format: float
+ *                   description: All-time total trading volume (sum of trade amounts)
+ *                 todaysRevenue:
+ *                   type: number
+ *                   format: float
+ *                   description: Today's revenue (sum of transaction fees for trades created today)
+ *       500:
+ *         description: Server error
+ */
+router.get('/revenue-stats', auth, isAdmin, adminController.getRevenueStats);
 
 
 /**

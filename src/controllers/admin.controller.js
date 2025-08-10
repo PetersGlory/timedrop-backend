@@ -4,7 +4,8 @@ const Order = require('../models/order');
 const Portfolio = require('../models/portfolio');
 const Settings = require('../models/settings');
 const Bookmark = require('../models/bookmark');
-const { Withdrawal } = require('../models');
+const { Withdrawal, Transaction } = require('../models');
+const { Op } = require('sequelize');
 
 module.exports = {
   // Users
@@ -485,11 +486,20 @@ module.exports = {
   // Get a single withdrawal request by ID
   async getWithdrawal(req, res) {
     try {
-      const withdrawal = await Withdrawal.findByPk(req.params.id);
+      const withdrawal = await Withdrawal.findByPk(req.params.id, {
+        include: [{
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        }]
+      });
       if (!withdrawal) {
         return res.status(404).json({ message: 'Withdrawal request not found' });
       }
-      res.json({ withdrawal });
+
+      res.json({ 
+        withdrawal
+      });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -526,6 +536,54 @@ module.exports = {
       res.json({ withdrawal });
     } catch (error) {
       res.status(400).json({ message: 'Invalid input', error: error.message });
+    }
+  },
+
+  /**
+   * Get platform revenue and trading volume statistics.
+   * - Revenue: sum of transaction_fee for all 'trade' transactions.
+   * - Volume: sum of amount for all 'trade' transactions.
+   * - Today's revenue: sum of transaction_fee for 'trade' transactions created today.
+   */
+  async getRevenueStats(req, res) {
+    try {
+      // All-time revenue and volume
+      const [allStats, todayStats] = await Promise.all([
+        Transaction.findAll({
+          where: { type: 'trade', status: 'completed' },
+          attributes: [
+            [Transaction.sequelize.fn('SUM', Transaction.sequelize.col('transaction_fee')), 'totalRevenue'],
+            [Transaction.sequelize.fn('SUM', Transaction.sequelize.col('amount')), 'totalVolume']
+          ],
+          raw: true
+        }),
+        Transaction.findAll({
+          where: {
+            type: 'trade',
+            status: 'completed',
+            created_at: {
+              [Op.gte]: new Date(new Date().setHours(0, 0, 0, 0)),
+              [Op.lt]: new Date(new Date().setHours(23, 59, 59, 999))
+            }
+          },
+          attributes: [
+            [Transaction.sequelize.fn('SUM', Transaction.sequelize.col('transaction_fee')), 'todaysRevenue']
+          ],
+          raw: true
+        })
+      ]);
+
+      const totalRevenue = parseFloat(allStats[0].totalRevenue) || 0;
+      const totalVolume = parseFloat(allStats[0].totalVolume) || 0;
+      const todaysRevenue = parseFloat(todayStats[0].todaysRevenue) || 0;
+
+      res.json({
+        totalRevenue,
+        totalVolume,
+        todaysRevenue
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
     }
   },
 }; 
