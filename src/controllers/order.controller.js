@@ -31,6 +31,21 @@ async createOrder(req, res) {
       return res.status(400).json({ message: 'Order type must be BUY or SELL' });
     }
 
+    const prevOrder = await Order.findOne({
+      where: {
+        marketId,
+        userId: req.user.id,
+        price,
+        type
+      }
+    });
+
+    if (prevOrder) {
+      return res.status(422).json({
+        message: "You already have an order with the same market, type, and price."
+      });
+    }
+
     // Fetch user, wallet, and market
     const user = await User.findByPk(req.user.id);
     if (!user) {

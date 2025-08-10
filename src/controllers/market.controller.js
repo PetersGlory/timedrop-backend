@@ -13,7 +13,8 @@ module.exports = {
       const markets = await Market.findAll({
         where: {
           status: { [Op.ne]: 'archieve' }
-        }
+        },
+        order: [['created_at', 'DESC']]
       });
 
       // Map and format each market according to the required structure
