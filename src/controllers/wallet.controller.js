@@ -189,11 +189,11 @@ module.exports = {
 
       // Check Flutterwave response for success and status
       const fwData = response.data;
-      if (!fwData || !fwData.success || !fwData.data || fwData.data.status !== 'success') {
+      if (!fwData || fwData.status !== 'success' || !fwData.data) {
         return res.status(500).json({
           success: false,
-          error: fwData?.data?.message || fwData?.message || 'Payout failed',
-          err:fwData
+          error: fwData?.message || 'Payout failed',
+          err: fwData
         });
       }
 
