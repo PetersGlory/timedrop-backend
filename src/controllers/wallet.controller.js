@@ -192,7 +192,8 @@ module.exports = {
       if (!fwData || !fwData.success || !fwData.data || fwData.data.status !== 'success') {
         return res.status(500).json({
           success: false,
-          error: fwData?.data?.message || fwData?.message || 'Payout failed'
+          error: fwData?.data?.message || fwData?.message || 'Payout failed',
+          err:fwData
         });
       }
 
