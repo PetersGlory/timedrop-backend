@@ -208,7 +208,7 @@ module.exports = {
         userId: req.user.id,
         amount: parseFloat(amount),
         currency: wallet.currency || 'NGN',
-        status: transferData.status || 'pending',
+        status: transferData.status == "success" ? "completed" : 'pending',
         processedAt: new Date(),
         reason: narration || null,
         reference: transferData.reference || reference,
