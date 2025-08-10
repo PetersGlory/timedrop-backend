@@ -486,19 +486,24 @@ module.exports = {
   // Get a single withdrawal request by ID
   async getWithdrawal(req, res) {
     try {
-      const withdrawal = await Withdrawal.findByPk(req.params.id, {
-        include: [{
-          model: User,
-          as: 'user',
-          attributes: ['id', 'firstName', 'lastName', 'email']
-        }]
-      });
+      const withdrawal = await Withdrawal.findByPk(req.params.id);
       if (!withdrawal) {
         return res.status(404).json({ message: 'Withdrawal request not found' });
       }
 
+      // Manually fetch the user since association is not set up
+      let user = null;
+      if (withdrawal.userId) {
+        user = await User.findByPk(withdrawal.userId, {
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        });
+      }
+
       res.json({ 
-        withdrawal
+        withdrawal: {
+          ...withdrawal.toJSON(),
+          user: user ? user.toJSON() : null
+        }
       });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
