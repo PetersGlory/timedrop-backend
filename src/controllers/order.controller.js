@@ -143,7 +143,7 @@ async createOrder(req, res) {
       type,
       price,
       quantity,
-      status: 'Paired',
+      status: 'Open',
       orderPair
     });
 
