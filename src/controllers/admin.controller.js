@@ -28,10 +28,51 @@ module.exports = {
   },
   async createUser(req, res) {
     try {
-      const user = await User.create(req.body);
-      res.status(201).json(user);
+      // Only allow fields defined in the User model
+      const {
+        email,
+        password,
+        firstName,
+        lastName,
+        phone,
+        gender,
+        role,
+        country
+      } = req.body;
+
+      // Sentimental touch: check for required fields and respond with warmth
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({
+          message: "We'd love to welcome a new user, but please provide all required fields: email, password, firstName, and lastName."
+        });
+      }
+
+      // Create the user (password hashing and timedropId handled by model hooks)
+      const user = await User.create({
+        email,
+        password,
+        firstName,
+        lastName,
+        phone,
+        gender,
+        role,
+        country
+      });
+
+      // Remove sensitive info before sending response
+      const userResponse = user.toJSON();
+      delete userResponse.password;
+
+      res.status(201).json({
+        message: `Welcome aboard, ${user.firstName}! Your journey with us has just begun.`,
+        user: userResponse
+      });
     } catch (error) {
-      res.status(400).json({ message: 'Invalid input', error: error.message });
+      // Sentimental error message
+      res.status(400).json({
+        message: "We couldn't create your account. Please check your details and try again. If the problem persists, we're here to help.",
+        error: error.message
+      });
     }
   },
   async updateUser(req, res) {
