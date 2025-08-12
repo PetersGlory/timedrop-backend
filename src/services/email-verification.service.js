@@ -180,7 +180,7 @@ class EmailVerificationService {
 
   // Send password reset email
   async sendPasswordResetEmail(user, resetToken) {
-    const resetUrl = `${process.env.FRONTEND_URL || 'https://timedrop.app'}/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL || 'https://timedrop.live'}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
       from: process.env.SMTP_FROM,
