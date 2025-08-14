@@ -187,7 +187,7 @@ class EmailVerificationService {
       to: user.email,
       subject: 'Reset Your Timedrop Password',
       html: `
-        ${getEmailHeader()}
+        ${this.getEmailHeader()}
         
         <h2 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 20px 0;">
           Password Reset Request
@@ -219,7 +219,7 @@ class EmailVerificationService {
           </p>
         </div>
         
-        ${getEmailFooter()}
+        ${this.getEmailFooter()}
       `
     };
 

@@ -90,7 +90,7 @@ module.exports = {
       await user.save();
 
       // Send reset password email
-      await sendPasswordResetEmail(user);
+      await sendPasswordResetEmail(user, resetToken);
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
