@@ -2,7 +2,7 @@ const User = require('../models/user');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Wallet } = require('../models');
-const { sendPasswordResetEmail } = require('../services/email-verification.service');
+const emailVerificationService = require('../services/email-verification.service');
 const { Op } = require('sequelize');
 
 function generateToken(user) {
@@ -90,7 +90,7 @@ module.exports = {
       await user.save();
 
       // Send reset password email
-      await sendPasswordResetEmail(user, resetToken);
+      await emailVerificationService.sendPasswordResetEmail(user, resetToken);
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
