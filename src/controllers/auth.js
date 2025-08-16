@@ -90,7 +90,12 @@ module.exports = {
       await user.save();
 
       // Send reset password email
-      await emailVerificationService.sendPasswordResetEmail(user, resetToken);
+      const emailSent = await emailVerificationService.sendPasswordResetEmail(user, resetToken);
+      if(emailSent){
+        res.json({ message: 'Password reset email sent' });
+      }else{
+        res.status(500).json({ message: 'Failed to send password reset email' });
+      }
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
