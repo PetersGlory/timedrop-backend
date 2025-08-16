@@ -5,9 +5,7 @@ const { User } = require('../models');
 class EmailVerificationService {
   constructor() {
     this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: false,
+      service: 'gmail', // This automatically sets host and port
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
