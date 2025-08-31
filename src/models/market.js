@@ -27,6 +27,10 @@ const Market = sequelize.define('Market', {
     type: DataTypes.ENUM('Open', 'closed', 'archieve'),
     defaultValue: 'Open'
   },
+  isDaily: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   startDate: {
     type: DataTypes.DATE,
     allowNull: false

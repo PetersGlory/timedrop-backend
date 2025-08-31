@@ -27,6 +27,7 @@ module.exports = {
           url: market.image.url || 'https://placehold.co/600x400.png',
           hint: market.image.hint || 'stock market',
         },
+        isDaily: market.isDaily || false,
         startDate: market.startDate
           ? new Date(market.startDate).toISOString()
           : subHours(new Date(), 4).toISOString(),
@@ -61,6 +62,7 @@ module.exports = {
           url: market.image.url || 'https://placehold.co/600x400.png',
           hint: market.image.hint || 'stock market',
         },
+        isDaily: market.isDaily || false,
         startDate: market.startDate
           ? new Date(market.startDate).toISOString()
           : subHours(new Date(), 4).toISOString(),
@@ -78,7 +80,7 @@ module.exports = {
 
   // Create a new market
   async createMarket(req, res) {
-    const {category, question, history, image, startDate, endDate} = req.body
+    const {category, question, history, image, startDate, endDate, isDaily} = req.body
     try {
       const market = await Market.create({
         question,
@@ -88,6 +90,7 @@ module.exports = {
           url: image.imageURL,
           hint: image.imageHint
         },
+        isDaily: isDaily || false,
         startDate,
         endDate
       });
