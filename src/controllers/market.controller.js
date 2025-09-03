@@ -1,8 +1,8 @@
-const Market = require('../models/market');
+// const Market = require('../models/market');
 const Category = require('../models/category');
 const { subHours, addHours } = require('date-fns');
 const { Op } = require('sequelize');
-const { Order, Wallet, Transaction } = require('../models');
+const { Order, Wallet, Transaction, Market } = require('../models');
 
 module.exports = {
   // Get all markets
