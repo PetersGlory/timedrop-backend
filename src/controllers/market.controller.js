@@ -18,7 +18,7 @@ module.exports = {
       });
 
       // Map and format each market according to the required structure
-      const formattedMarkets = markets.map(market => ({
+      const formattedMarkets = markets.length > 0 ? markets.map(market => ({
         id: String(market.id),
         category: market.category || 'General',
         question: market.question || market.title || '',
@@ -35,7 +35,7 @@ module.exports = {
           ? new Date(market.endDate).toISOString()
           : addHours(new Date(), 20).toISOString(),
         history: market.history || [], // order history, should be an array
-      }));
+      })) : [];
 
       res.json({ markets: formattedMarkets });
     } catch (error) {
