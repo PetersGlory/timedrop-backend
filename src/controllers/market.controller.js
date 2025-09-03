@@ -2,7 +2,7 @@
 const Category = require('../models/category');
 const { subHours, addHours } = require('date-fns');
 const { Op } = require('sequelize');
-const { Order, Wallet, Transaction, Market } = require('../models');
+const { Order, Wallet, Transaction, Market, sequelize } = require('../models');
 
 module.exports = {
   // Get all markets
@@ -10,12 +10,10 @@ module.exports = {
   // Get all markets
   async getMarkets(req, res) {
     try {
-      const markets = await Market.findAll({
-        where: {
-          status: { [Op.ne]: 'archieve' }
-        },
-        order: [['createdAt', 'DESC']]
-      });
+      // Use raw SQL query to fetch markets where status is not 'archieve'
+      const [markets] = await sequelize.query(
+        `SELECT * FROM Markets WHERE status != 'archieve' ORDER BY createdAt DESC`
+      );
 
       // Map and format each market according to the required structure
       const formattedMarkets = markets.length > 0 ? markets.map(market => ({
@@ -23,10 +21,20 @@ module.exports = {
         category: market.category || 'General',
         question: market.question || market.title || '',
         status: market.status || 'Open',
-        image: {
-          url: market.image.url || 'https://placehold.co/600x400.png',
-          hint: market.image.hint || 'stock market',
-        },
+        image: (() => {
+          let imageObj = { url: 'https://placehold.co/600x400.png', hint: 'stock market' };
+          // If market.image is a JSON string, parse it
+          if (market.image) {
+            try {
+              const img = typeof market.image === 'string' ? JSON.parse(market.image) : market.image;
+              imageObj.url = img.url || imageObj.url;
+              imageObj.hint = img.hint || imageObj.hint;
+            } catch (e) {
+              // fallback to default
+            }
+          }
+          return imageObj;
+        })(),
         isDaily: market.isDaily || false,
         startDate: market.startDate
           ? new Date(market.startDate).toISOString()
@@ -34,7 +42,17 @@ module.exports = {
         endDate: market.endDate
           ? new Date(market.endDate).toISOString()
           : addHours(new Date(), 20).toISOString(),
-        history: market.history || [], // order history, should be an array
+        history: (() => {
+          // If market.history is a JSON string, parse it
+          if (market.history) {
+            try {
+              return typeof market.history === 'string' ? JSON.parse(market.history) : market.history;
+            } catch (e) {
+              return [];
+            }
+          }
+          return [];
+        })(),
       })) : [];
 
       res.json({ markets: formattedMarkets });
