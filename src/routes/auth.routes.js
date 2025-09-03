@@ -122,6 +122,59 @@ router.post('/login', authController.login);
 
 /**
  * @swagger
+ * /auth/google:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Login user with Google
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - firstName
+ *               - lastName
+ *               - email
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     firstName:
+ *                       type: string
+ *                     lastName:
+ *                       type: string
+ *                     token:
+ *                       type: string
+ *       400:
+ *         description: Missing required fields
+ *       500:
+ *         description: Server error 
+ */
+router.post('/google', authController.googleAuth);
+
+
+/**
+ * @swagger
  * /auth/me:
  *   get:
  *     tags: [Authentication]

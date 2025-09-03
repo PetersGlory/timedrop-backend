@@ -35,6 +35,42 @@ module.exports = {
     }
   },
 
+  // Register/login with Google
+  async googleAuth(req, res) {
+    try {
+      const { firstName, lastName, email } = req.body;
+      if (!firstName || !lastName || !email) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      // Check if user already exists
+      let user = await User.findOne({ where: { email } });
+
+      if (!user) {
+        // Create new user (no password, since it's Google)
+        user = await User.create({
+          firstName,
+          lastName,
+          email,
+          password: null, // or you can generate a random string if required by your model
+          // You may want to set a flag like "provider: 'google'" if your model supports it
+        });
+
+        // Create wallet for the new user
+        await Wallet.create({
+          userId: user.id,
+          balance: 0,
+          currency: 'NGN'
+        });
+      }
+
+      const token = generateToken(user);
+      res.status(200).json({ user, token });
+    } catch (error) {
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  },
+
   // Login a user
   async login(req, res) {
     try {
