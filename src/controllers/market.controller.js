@@ -10,13 +10,19 @@ module.exports = {
   // Get all markets
   async getMarkets(req, res) {
     try {
-      // Use raw SQL query to fetch markets where status is not 'archieve'
+      // First try to get all markets, then filter in JavaScript to handle any status column issues
       const [markets] = await sequelize.query(
-        `SELECT * FROM Markets WHERE status != 'archieve' ORDER BY createdAt DESC`
+        `SELECT * FROM Markets ORDER BY createdAt DESC`
       );
+      
+      // Filter out archived markets in JavaScript
+      const filteredMarkets = markets.filter(market => {
+        const status = market.status;
+        return !status || (status !== 'archieve' && status !== 'Archieve' && status !== 'ARCHIEVE');
+      });
 
       // Map and format each market according to the required structure
-      const formattedMarkets = markets.length > 0 ? markets.map(market => ({
+      const formattedMarkets = filteredMarkets.length > 0 ? filteredMarkets.map(market => ({
         id: String(market.id),
         category: market.category || 'General',
         question: market.question || market.title || '',
