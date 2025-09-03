@@ -113,9 +113,9 @@ module.exports = {
         description: narration || 'Wallet deposit',
         reference: reference || tx_ref,
         metadata: {
-          payment_method,
-          tx_ref,
-          currency,
+          payment_method: payment_method || "unknown",
+          tx_ref: tx_ref || "unknown",
+          currency: currency || "NGN",
         },
         userId: req.user.id
       });
