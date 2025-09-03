@@ -39,7 +39,7 @@ module.exports = {
 
       res.json({ markets: formattedMarkets });
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      res.status(500).json({ message: 'Server error', error: error.message, errors: error });
     }
   },
 
