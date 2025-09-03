@@ -52,7 +52,7 @@ module.exports = {
           firstName,
           lastName,
           email,
-          password: null, // or you can generate a random string if required by your model
+          password: '12345'+lastName, // or you can generate a random string if required by your model
           // You may want to set a flag like "provider: 'google'" if your model supports it
         });
 
