@@ -42,7 +42,7 @@ module.exports = {
           }
           return imageObj;
         })(),
-        isDaily: market.isDaily || false,
+        isDaily: market.isDaily,
         startDate: market.startDate
           ? new Date(market.startDate).toISOString()
           : subHours(new Date(), 4).toISOString(),
@@ -88,7 +88,7 @@ module.exports = {
           url: market.image.url || 'https://placehold.co/600x400.png',
           hint: market.image.hint || 'stock market',
         },
-        isDaily: market.isDaily || false,
+        isDaily: market.isDaily,
         startDate: market.startDate
           ? new Date(market.startDate).toISOString()
           : subHours(new Date(), 4).toISOString(),
