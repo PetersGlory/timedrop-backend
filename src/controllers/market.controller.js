@@ -116,7 +116,7 @@ module.exports = {
           url: image.imageURL,
           hint: image.imageHint
         },
-        isDaily: isDaily || false,
+        isDaily: isDaily,
         startDate,
         endDate
       });
