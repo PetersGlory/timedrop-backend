@@ -23,6 +23,10 @@ const Market = sequelize.define('Market', {
     type: DataTypes.JSON, // array of {date, volume}
     allowNull: true
   },
+  outcome: {
+    type: DataTypes.ENUM('Yes', 'No'),
+    allowNull: true
+  },
   status:{
     type: DataTypes.ENUM('Open', 'closed', 'archieve'),
     defaultValue: 'Open'

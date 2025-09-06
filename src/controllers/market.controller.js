@@ -27,6 +27,7 @@ module.exports = {
         category: market.category || 'General',
         question: market.question || market.title || '',
         status: market.status || 'Open',
+        outcome: market.outcome || "No",
         image: (() => {
           let imageObj = { url: 'https://placehold.co/600x400.png', hint: 'stock market' };
           // If market.image is a JSON string, parse it
@@ -82,6 +83,7 @@ module.exports = {
         category: market.category || 'General',
         question: market.question || market.title || '',
         status: market.status || 'Open',
+        outcome: market.outcome || "No",
         image: {
           url: market.image.url || 'https://placehold.co/600x400.png',
           hint: market.image.hint || 'stock market',
@@ -322,6 +324,7 @@ module.exports = {
 
       // Close the market
       market.status = 'closed';
+      market.outcome = result
       await market.save();
       orders.forEach(async order => {
         order.status = 'Filled';
