@@ -100,7 +100,30 @@ module.exports = {
   async getAllMarkets(req, res) {
     try {
       const markets = await Market.findAll();
-      res.json({ markets });
+      const result = [];
+
+      for (const market of markets) {
+        // Find all orders for this market
+        const orders = await Order.findAll({
+          where: { marketId: market.id }
+        });
+
+        // Count totalBidUsers by summing the length of orderPair arrays (if present)
+        let totalBidUsers = 0;
+        for (const order of orders) {
+          if (order.orderPair && Array.isArray(order.orderPair)) {
+            totalBidUsers += order.orderPair.length;
+          }
+        }
+
+        // Append totalBidUsers to market data
+        const marketData = market.toJSON();
+        marketData.totalBidUsers = totalBidUsers;
+
+        result.push(marketData);
+      }
+
+      res.json({ markets: result });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
