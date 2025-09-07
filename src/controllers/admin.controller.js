@@ -154,9 +154,71 @@ module.exports = {
   },
   async getOrder(req, res) {
     try {
+      // Find the order by primary key
       const order = await Order.findByPk(req.params.id);
-      if (!order) return res.status(404).json({ message: 'Order not found' });
-      res.json({ order });
+
+      if (!order) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+
+      // Ensure orderPair is always an array (for consistency)
+      let orderPair = [];
+      if (Array.isArray(order.orderPair)) {
+        orderPair = order.orderPair;
+      } else if (order.orderPair && typeof order.orderPair === 'object') {
+        // If stored as object, wrap in array
+        orderPair = [order.orderPair];
+      } else if (order.orderPair) {
+        // If stored as stringified JSON, try to parse
+        try {
+          // Parse orderPair and ensure it is an array of two different user IDs (strings)
+          let parsedPair = [];
+          try {
+            parsedPair = JSON.parse(order.orderPair);
+            if (!Array.isArray(parsedPair)) parsedPair = [];
+          } catch (e) {
+            parsedPair = [];
+          }
+          // Filter to ensure only unique, non-empty string user IDs
+          orderPair = Array.from(new Set(parsedPair.filter(id => typeof id === 'string' && id.trim() !== ''))).slice(0, 2);
+
+          // If we have two different user IDs, fetch their user info
+          if (orderPair.length === 2 && orderPair[0] !== orderPair[1]) {
+            const users = await User.findAll({
+              where: { id: orderPair },
+              attributes: ['id', 'email', 'firstName', 'lastName']
+            });
+            // Replace orderPair with user info objects if both users found
+            if (users.length === 2) {
+              orderPair = users.map(u => ({
+                id: u.id,
+                email: u.email,
+                firstName: u.firstName,
+                lastName: u.lastName
+              }));
+            }
+          }
+        } catch (e) {
+          orderPair = [];
+        }
+      }
+
+      // Compose a detailed order object for admin
+      const detailedOrder = {
+        id: order.id,
+        marketId: order.marketId,
+        userId: order.userId,
+        marketName: order.marketName,
+        type: order.type,
+        price: order.price,
+        quantity: order.quantity,
+        status: order.status,
+        orderPair: orderPair, // always an array
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt
+      };
+
+      res.json({ order: detailedOrder });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
