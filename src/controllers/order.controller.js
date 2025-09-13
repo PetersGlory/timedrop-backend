@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Wallet, Market } = require('../models');
+const { Wallet, Market, sequelize } = require('../models');
 const Order = require('../models/order');
 const User = require('../models/user'); // Import User model
 module.exports = {
