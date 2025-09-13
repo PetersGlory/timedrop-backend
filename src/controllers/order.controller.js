@@ -6,15 +6,28 @@ module.exports = {
   // Get all orders for the authenticated user
   async getOrders(req, res) {
     try {
-      const orders = await Order.findAll({ where: { userId: req.user.id } });
-      // Optionally, split into open and filled orders
+      const userId = req.user.id;
+  
+      const orders = await Order.findAll({
+        where: {
+          [Op.or]: [
+            { userId }, // still include direct userId field
+            sequelize.where(
+              sequelize.cast(sequelize.col('orderPair'), 'text'),
+              { [Op.like]: `%${userId}%` }
+            )
+          ]
+        }
+      });
+  
       const openOrders = orders.filter(o => o.status === 'Open');
       const filledOrders = orders.filter(o => o.status === 'Filled');
+  
       res.json({ openOrders, filledOrders });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  },
+  }
 
   // Create a new order for the authenticated user, with orderPair logic
 async createOrder(req, res) {
