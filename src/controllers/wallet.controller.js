@@ -254,7 +254,8 @@ module.exports = {
       console.error('Payout error:', error.response?.data || error.message);
       res.status(error.response?.status || 500).json({
         success: false,
-        error: error.response?.data?.message || error.message || 'Payout failed'
+        error: error.response?.data?.message || error.message || 'Payout failed',
+        errorbody:error.response?.data
       });
     }
   },
