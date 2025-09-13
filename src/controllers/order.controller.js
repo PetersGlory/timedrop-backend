@@ -27,7 +27,7 @@ module.exports = {
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  }
+  },
 
   // Create a new order for the authenticated user, with orderPair logic
 async createOrder(req, res) {
