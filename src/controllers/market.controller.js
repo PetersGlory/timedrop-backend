@@ -214,6 +214,14 @@ module.exports = {
    *   - Credit the user's wallet with the order price if correct.
    *   - Close the market after processing.
    */
+  /**
+   * The original logic for "no pair" (single user) is not working because it expects
+   * order.orderPair to be an array of length 1. However, in some cases, orderPair might be null,
+   * undefined, or not an array at all, especially if there was never a pair.
+   * 
+   * The fix is to handle cases where orderPair is missing, not an array, or is an empty array,
+   * and treat those as "solo" orders.
+   */
   async resolveMarket(req, res) {
     const { marketId, result } = req.body;
     if (!marketId || !['yes', 'no'].includes(result)) {
@@ -287,12 +295,24 @@ module.exports = {
               }
             }
           }
-        } else if (
-          // Single user order (no pair)
-          Array.isArray(order.orderPair) && order.orderPair.length === 1
-        ) {
-          // If this order is the correct type, credit the user (with 10% deduction)
-          if (order.type === correctOrderType) {
+        } else {
+          // Handle single user order (no pair)
+          // This covers:
+          // - orderPair is undefined/null
+          // - orderPair is not an array
+          // - orderPair is an array of length 0 or 1
+          let isSoloOrder = false;
+          if (!order.orderPair) {
+            isSoloOrder = true;
+          } else if (!Array.isArray(order.orderPair)) {
+            isSoloOrder = true;
+          } else if (order.orderPair.length === 0) {
+            isSoloOrder = true;
+          } else if (order.orderPair.length === 1) {
+            isSoloOrder = true;
+          }
+
+          if (isSoloOrder && order.type === correctOrderType) {
             const creditAmount = parseFloat(order.price);
             const wallet = await Wallet.findOne({ where: { userId: order.userId } });
             if (wallet) {
@@ -326,10 +346,11 @@ module.exports = {
       market.status = 'closed';
       market.outcome = result
       await market.save();
-      orders.forEach(async order => {
+      // Use Promise.all to ensure all order status updates are awaited
+      await Promise.all(orders.map(async order => {
         order.status = 'Filled';
         await order.save();
-      });
+      }));
 
       return res.json({
         message: 'Market resolved and winners credited.',
