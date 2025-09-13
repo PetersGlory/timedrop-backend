@@ -312,7 +312,7 @@ module.exports = {
             isSoloOrder = true;
           }
 
-          if (isSoloOrder && order.type === correctOrderType) {
+          if (isSoloOrder) {
             const creditAmount = parseFloat(order.price);
             const wallet = await Wallet.findOne({ where: { userId: order.userId } });
             if (wallet) {
