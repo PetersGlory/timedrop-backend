@@ -2,6 +2,8 @@ const { Op } = require('sequelize');
 const { Wallet, Market, sequelize } = require('../models');
 const Order = require('../models/order');
 const User = require('../models/user'); // Import User model
+
+
 module.exports = {
   // Get all orders for the authenticated user
   async getOrders(req, res) {
@@ -11,7 +13,7 @@ module.exports = {
       const orders = await Order.findAll({
         where: {
           [Op.or]: [
-            { userId }, // still include direct userId field
+            { userId }, // keep direct userId support
             sequelize.where(
               sequelize.cast(sequelize.col('orderPair'), 'text'),
               { [Op.like]: `%${userId}%` }
@@ -20,8 +22,22 @@ module.exports = {
         }
       });
   
-      const openOrders = orders.filter(o => o.status === 'Open');
-      const filledOrders = orders.filter(o => o.status === 'Filled');
+      // Add role info based on position in orderPair
+      const enrichedOrders = orders.map(order => {
+        let role = null;
+        if (Array.isArray(order.orderPair)) {
+          if (order.orderPair[0] === userId) {
+            role = "firstUser";
+          } else if (order.orderPair[1] === userId) {
+            role = "secondUser";
+            order.type = order.secondType;
+          }
+        }
+        return { ...order.toJSON(), role };
+      });
+  
+      const openOrders = enrichedOrders.filter(o => o.status === 'Open');
+      const filledOrders = enrichedOrders.filter(o => o.status === 'Filled');
   
       res.json({ openOrders, filledOrders });
     } catch (error) {
@@ -132,6 +148,7 @@ async createOrder(req, res) {
       
       // Update the matched order's orderPair
       matchedOrder.orderPair = orderPair;
+      matchedOrder.secondType = type;
       matchedOrder.status = 'Paired';
       await matchedOrder.save();
       

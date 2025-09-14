@@ -23,6 +23,10 @@ const Order = sequelize.define('Order', {
     type: DataTypes.ENUM('BUY', 'SELL'),
     allowNull: false
   },
+  secondType: {
+    type: DataTypes.ENUM('BUY', 'SELL'),
+    allowNull: false
+  },
   price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false
