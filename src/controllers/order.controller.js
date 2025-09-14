@@ -36,7 +36,7 @@ module.exports = {
         return { ...order.toJSON(), role };
       });
   
-      const openOrders = enrichedOrders.filter(o => o.status === 'Open');
+      const openOrders = enrichedOrders.filter(o => o.status === 'Open' || o.status === 'Paired');
       const filledOrders = enrichedOrders.filter(o => o.status === 'Filled');
   
       res.json({ openOrders, filledOrders });
