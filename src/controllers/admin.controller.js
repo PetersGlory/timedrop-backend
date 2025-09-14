@@ -99,35 +99,44 @@ module.exports = {
   // Markets
   async getAllMarkets(req, res) {
     try {
+      // 1. Fetch all markets
       const markets = await Market.findAll();
-      const result = [];
-
-      for (const market of markets) {
-        // Find all orders for this market
-        const orders = await Order.findAll({
-          where: { marketId: market.id }
-        });
-
-        // Count totalBidUsers by summing the length of orderPair arrays (if present)
-        let totalBidUsers = 0;
-        for (const order of orders) {
-          if (order.orderPair && Array.isArray(order.orderPair)) {
-            totalBidUsers += order.orderPair.length;
+  
+      // 2. Fetch all orders (only marketId + orderPair needed)
+      const orders = await Order.findAll({
+        attributes: ['marketId', 'orderPair']
+      });
+  
+      // 3. Group orders by marketId
+      const ordersByMarket = orders.reduce((acc, order) => {
+        if (!acc[order.marketId]) acc[order.marketId] = [];
+        acc[order.marketId].push(order);
+        return acc;
+      }, {});
+  
+      // 4. Attach totalBidUsers to each market
+      const result = markets.map(market => {
+        const marketOrders = ordersByMarket[market.id] || [];
+  
+        const totalBidUsers = marketOrders.reduce((sum, o) => {
+          if (o.orderPair && Array.isArray(o.orderPair)) {
+            return sum + o.orderPair.length;
           }
-        }
-
-        // Append totalBidUsers to market data
-        const marketData = market.toJSON();
-        marketData.totalBidUsers = totalBidUsers;
-
-        result.push(marketData);
-      }
-
+          return sum;
+        }, 0);
+  
+        return {
+          ...market.toJSON(),
+          totalBidUsers
+        };
+      });
+  
       res.json({ markets: result });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   },
+  
   async getMarket(req, res) {
     try {
       const market = await Market.findByPk(req.params.id);

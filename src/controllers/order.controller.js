@@ -60,6 +60,8 @@ async createOrder(req, res) {
       return res.status(400).json({ message: 'Order type must be BUY or SELL' });
     }
 
+    let order;
+
     const prevOrder = await Order.findOne({
       where: {
         marketId,
@@ -160,22 +162,22 @@ async createOrder(req, res) {
         // For example, create a transaction record, update market stats, etc.
         console.log(`Order ${matchedOrder.id} paired with new order for users: ${orderPair.join(', ')}`);
       }
+      order = matchedOrder
     } else {
       // No match found, create a new pair with only this user
       orderPair = [req.user.id];
+      // Create the order according to order.js model, including orderPair
+      order = await Order.create({
+        marketId,
+        marketName: market.question || market.category || '', // fallback if marketName is not present
+        userId: req.user.id,
+        type,
+        price,
+        quantity,
+        status: 'Open',
+        orderPair
+      });
     }
-
-    // Create the order according to order.js model, including orderPair
-    const order = await Order.create({
-      marketId,
-      marketName: market.question || market.category || '', // fallback if marketName is not present
-      userId: req.user.id,
-      type,
-      price,
-      quantity,
-      status: 'Open',
-      orderPair
-    });
 
     // Prepare response with additional pairing information
     const response = {
@@ -190,6 +192,7 @@ async createOrder(req, res) {
     };
 
     res.status(201).json(response);
+    
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(400).json({ message: 'Invalid input', error: error.message });
