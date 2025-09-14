@@ -172,6 +172,7 @@ async createOrder(req, res) {
         marketName: market.question || market.category || '', // fallback if marketName is not present
         userId: req.user.id,
         type,
+        secondType: oppositeType,
         price,
         quantity,
         status: 'Open',
