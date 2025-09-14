@@ -252,49 +252,102 @@ module.exports = {
         // Handle paired orders (2 users)
         if (Array.isArray(order.orderPair) && order.orderPair.length === 2) {
           // Create a unique key for the pair to avoid double processing
-          const pairKey = order.orderPair.slice().sort((a, b) => a - b).join('-');
+          const pairKey = order.orderPair.slice().sort().join('-');
           if (processedPairs.has(pairKey)) continue;
           processedPairs.add(pairKey);
 
-          // Find both orders in the pair
-          const pairOrders = orders.filter(
-            o =>
-              Array.isArray(o.orderPair) &&
-              o.orderPair.length === 2 &&
-              JSON.stringify(o.orderPair.slice().sort((a, b) => a - b)) === JSON.stringify(order.orderPair.slice().sort((a, b) => a - b))
-          );
+          // Get both user IDs
+          const [userId1, userId2] = order.orderPair;
+          // The order model: type is for userId1, secondType is for userId2
 
-          if (pairOrders.length === 2) {
-            // Find the order with the correct type
-            const winnerOrder = pairOrders.find(o => o.type === correctOrderType);
-            if (winnerOrder) {
-              const creditAmount = parseFloat(winnerOrder.price) + (parseFloat(winnerOrder.price) * 0.9);
-              const wallet = await Wallet.findOne({ where: { userId: winnerOrder.userId } });
-              if (wallet) {
-                wallet.balance = parseFloat(wallet.balance) + creditAmount;
-                await wallet.save();
-                credited.push({ userId: winnerOrder.userId, amount: creditAmount });
+          // Find the two orders for this pair (should be two, but may be one if only one order object per pair)
+          // We'll use the current order as the reference for type/secondType
+          // Credit the correct user, add transaction for both
 
-                // Add transaction history for the credited user
-                await Transaction.create({
-                  userId: winnerOrder.userId,
-                  type: 'trade',
-                  amount: creditAmount,
-                  transaction_fee: (parseFloat(winnerOrder.price) * 0.1),
-                  status: 'completed',
-                  description: `Market resolved: ${marketId}, pair win`,
-                  reference: `market:${marketId}`,
-                  metadata: {
-                    orderId: winnerOrder.id,
-                    marketId: marketId,
-                    result: result,
-                    credited: true,
-                    pair: winnerOrder.orderPair
-                  }
-                });
-              }
+          // Determine which user is correct
+          let winnerUserId = null;
+          let winnerType = null;
+          let loserUserId = null;
+          let loserType = null;
+
+          if (order.type === correctOrderType) {
+            winnerUserId = userId1;
+            winnerType = order.type;
+            loserUserId = userId2;
+            loserType = order.secondType;
+          } else if (order.secondType === correctOrderType) {
+            winnerUserId = userId2;
+            winnerType = order.secondType;
+            loserUserId = userId1;
+            loserType = order.type;
+          } else {
+            // Neither user is correct, add transaction for both as loss
+            for (const [uid, t] of [[userId1, order.type], [userId2, order.secondType]]) {
+              await Transaction.create({
+                userId: uid,
+                type: 'trade',
+                amount: 0,
+                transaction_fee: null,
+                status: 'completed',
+                description: `Market resolved: ${marketId}, pair loss`,
+                reference: `market:${marketId}`,
+                metadata: {
+                  orderId: order.id,
+                  marketId: marketId,
+                  result: result,
+                  credited: false,
+                  pair: order.orderPair
+                }
+              });
             }
+            continue;
           }
+
+          // Credit winner
+          const creditAmount = parseFloat(order.price) + (parseFloat(order.price) * 0.9);
+          const winnerWallet = await Wallet.findOne({ where: { userId: winnerUserId } });
+          if (winnerWallet) {
+            winnerWallet.balance = parseFloat(winnerWallet.balance) + creditAmount;
+            await winnerWallet.save();
+            credited.push({ userId: winnerUserId, amount: creditAmount });
+
+            // Add transaction for winner
+            await Transaction.create({
+              userId: winnerUserId,
+              type: 'trade',
+              amount: creditAmount,
+              transaction_fee: (parseFloat(order.price) * 0.1),
+              status: 'completed',
+              description: `Market resolved: ${marketId}, pair win`,
+              reference: `market:${marketId}`,
+              metadata: {
+                orderId: order.id,
+                marketId: marketId,
+                result: result,
+                credited: true,
+                pair: order.orderPair
+              }
+            });
+          }
+
+          // Add transaction for loser (no credit)
+          await Transaction.create({
+            userId: loserUserId,
+            type: 'trade',
+            amount: 0,
+            transaction_fee: null,
+            status: 'completed',
+            description: `Market resolved: ${marketId}, pair loss`,
+            reference: `market:${marketId}`,
+            metadata: {
+              orderId: order.id,
+              marketId: marketId,
+              result: result,
+              credited: false,
+              pair: order.orderPair
+            }
+          });
+
         } else {
           // Handle single user order (no pair)
           // This covers:
