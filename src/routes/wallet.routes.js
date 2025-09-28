@@ -147,4 +147,14 @@ router.get('/transactions', auth, walletController.getTransactions);
 
 
 
+/**
+ * @route   POST /api/wallet/webhook
+ * @desc    Legacy webhook endpoint (deprecated)
+ * @access  Public (Flutterwave)
+ * @returns { error: string, newEndpoint: string }
+ * @response
+ *   410: Deprecated endpoint - use /api/webhooks/flutterwave instead
+ */
+router.post('/webhook', walletController.payoutWebhook);
+
 module.exports = router;

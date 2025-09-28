@@ -12,7 +12,8 @@ const portfolioRoutes = require('./routes/portfolio.routes');
 const settingsRoutes = require('./routes/settings.routes');
 const bookmarkRoutes = require('./routes/bookmark.routes');
 const adminRoutes = require('./routes/admin.routes');
-const walletRoutes = require('./routes/wallet.routes')
+const walletRoutes = require('./routes/wallet.routes');
+const webhookRoutes = require('./routes/webhook.routes');
 const errorHandler = require('./middleware/errorHandler');
 const setupSwagger = require('./swagger');
 
@@ -33,6 +34,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/bookmarks', bookmarkRoutes);
 app.use('/api/wallets', walletRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Register Swagger docs
 setupSwagger(app);

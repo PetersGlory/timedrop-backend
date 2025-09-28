@@ -326,34 +326,13 @@ module.exports = {
     }
   },
 
-  // Webhook handler for payout notifications
+  // Legacy webhook handler - now redirects to new webhook system
   async payoutWebhook(req, res) {
-    try {
-      const hash = req.headers['verif-hash'];
-
-      if (!hash) {
-        return res.status(401).json({ error: 'No hash provided' });
-      }
-
-      const secretHash = process.env.FLUTTERWAVE_SECRET_HASH;
-      if (hash !== secretHash) {
-        return res.status(401).json({ error: 'Invalid hash' });
-      }
-
-      const payload = req.body;
-
-      // Handle the webhook payload
-      console.log('Payout webhook received:', payload);
-
-      // TODO: Process the payout status update here
-      // For example: update your database, send notifications, etc.
-
-      res.status(200).json({ status: 'success' });
-
-    } catch (error) {
-      console.error('Webhook error:', error);
-      res.status(500).json({ error: 'Webhook processing failed' });
-    }
+    console.log('Legacy webhook endpoint called. Please use /api/webhooks/flutterwave instead.');
+    res.status(410).json({ 
+      error: 'This endpoint is deprecated. Please use /api/webhooks/flutterwave instead.',
+      newEndpoint: '/api/webhooks/flutterwave'
+    });
   },
 
   // Get all withdrawals for the authenticated user
