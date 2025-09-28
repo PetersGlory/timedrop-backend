@@ -1,5 +1,5 @@
-const { Withdrawal, Wallet, Transaction, User } = require('../models');
 const notificationService = require('../services/notification.service');
+const { Withdrawal, Wallet, Transaction, User } = require('../models');
 const { default: axios } = require('axios');
 
 // Flutterwave configuration
@@ -147,8 +147,8 @@ const handleTransferFailed = async (payload) => {
       }
     );
 
-    // Refund user balance
-    await refundUserBalance(withdrawal.userId, withdrawal.amount);
+    // Refund user balance and create refund transaction
+    await refundUserBalance(withdrawal.userId, withdrawal.amount, data, 'withdrawal_failed_refund');
 
     // Get user for notification
     const user = await User.findByPk(withdrawal.userId);
@@ -210,8 +210,8 @@ const handleTransferReversed = async (payload) => {
       }
     );
 
-    // Refund user balance
-    await refundUserBalance(withdrawal.userId, withdrawal.amount);
+    // Refund user balance and create refund transaction
+    await refundUserBalance(withdrawal.userId, withdrawal.amount, data, 'withdrawal_reversed_refund');
 
     // Get user for notification
     const user = await User.findByPk(withdrawal.userId);
@@ -266,25 +266,8 @@ const handleChargeCompleted = async (payload) => {
         return;
       }
 
-      // Update user balance
-      await updateUserBalance(user.id, data.amount);
-
-      // Create transaction record
-      await Transaction.create({
-        userId: user.id,
-        type: 'deposit',
-        amount: data.amount,
-        status: 'completed',
-        description: 'Wallet deposit via Flutterwave',
-        reference: data.tx_ref,
-        metadata: {
-          flutterwaveTransactionId: data.id,
-          payment_method: data.payment_type,
-          currency: data.currency,
-          customer_email: data.customer?.email,
-          customer_phone: data.customer?.phone_number
-        }
-      });
+      // Update user balance and create transaction record
+      await updateUserBalance(user.id, data.amount, data, 'deposit');
 
       // Send notification
       await notificationService.sendEmailNotification(
@@ -328,6 +311,24 @@ const handleChargeFailed = async (payload) => {
     });
 
     if (user) {
+      // Create failed payment transaction record
+      await Transaction.create({
+        userId: user.id,
+        type: 'deposit',
+        amount: data.amount,
+        status: 'failed',
+        description: 'Failed wallet deposit via Flutterwave',
+        reference: data.tx_ref,
+        metadata: {
+          flutterwaveTransactionId: data.id,
+          payment_method: data.payment_type,
+          currency: data.currency,
+          customer_email: data.customer?.email,
+          customer_phone: data.customer?.phone_number,
+          failure_reason: 'Payment failed'
+        }
+      });
+
       await notificationService.sendEmailNotification(
         user.email,
         'Payment Failed',
@@ -351,13 +352,31 @@ const handleChargeFailed = async (payload) => {
 /**
  * Refund user balance after failed/reversed withdrawal
  */
-const refundUserBalance = async (userId, amount) => {
+const refundUserBalance = async (userId, amount, webhookData, refundType) => {
   try {
     const wallet = await Wallet.findOne({ where: { userId } });
     if (wallet) {
       const newBalance = parseFloat(wallet.balance) + parseFloat(amount);
       await wallet.update({ balance: newBalance });
       console.log(`Refunded ${amount} to user ${userId}. New balance: ${newBalance}`);
+
+      // Create refund transaction record
+      await Transaction.create({
+        userId: userId,
+        type: 'deposit', // Refund is essentially a deposit back to wallet
+        amount: amount,
+        status: 'completed',
+        description: `Wallet refund - ${refundType}`,
+        reference: webhookData?.reference || `REFUND-${Date.now()}`,
+        metadata: {
+          refundType: refundType,
+          originalTransactionId: webhookData?.id,
+          originalReference: webhookData?.reference,
+          flutterwaveTransferId: webhookData?.id,
+          currency: webhookData?.currency || 'NGN',
+          reason: webhookData?.complete_message || 'Withdrawal refund'
+        }
+      });
     }
   } catch (error) {
     console.error('Error refunding user balance:', error);
@@ -367,7 +386,7 @@ const refundUserBalance = async (userId, amount) => {
 /**
  * Update user balance after successful payment
  */
-const updateUserBalance = async (userId, amount) => {
+const updateUserBalance = async (userId, amount, webhookData, transactionType = 'deposit') => {
   try {
     const wallet = await Wallet.findOne({ where: { userId } });
     if (wallet) {
@@ -383,6 +402,24 @@ const updateUserBalance = async (userId, amount) => {
       });
       console.log(`Created wallet for user ${userId} with balance: ${amount}`);
     }
+
+    // Create transaction record for successful payment
+    await Transaction.create({
+      userId: userId,
+      type: transactionType,
+      amount: amount,
+      status: 'completed',
+      description: 'Wallet deposit via Flutterwave',
+      reference: webhookData?.tx_ref || webhookData?.reference || `DEPOSIT-${Date.now()}`,
+      metadata: {
+        flutterwaveTransactionId: webhookData?.id,
+        payment_method: webhookData?.payment_type,
+        currency: webhookData?.currency || 'NGN',
+        customer_email: webhookData?.customer?.email,
+        customer_phone: webhookData?.customer?.phone_number,
+        webhook_event: 'charge.completed'
+      }
+    });
   } catch (error) {
     console.error('Error updating user balance:', error);
   }

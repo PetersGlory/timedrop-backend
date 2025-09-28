@@ -69,7 +69,8 @@ const { verifyFlutterwaveWebhook, captureRawBody } = require('../middleware/flut
 // Flutterwave webhook endpoint
 // Note: This endpoint should NOT require authentication as it's called by Flutterwave
 router.post('/flutterwave', 
-  verifyFlutterwaveWebhook,  // Verify JWT token
+  captureRawBody,  // Capture raw body for signature verification
+  verifyFlutterwaveWebhook,  // Verify webhook signature
   webhookController.handleWebhook
 );
 
