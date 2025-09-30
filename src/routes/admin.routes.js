@@ -1013,6 +1013,71 @@ router.get('/withdrawals/:id', auth, isAdmin, adminController.getWithdrawal);
  */
 router.patch('/withdrawals/:id', auth, isAdmin, adminController.updateWithdrawal);
 
+/**
+ * @swagger
+ * /admin/withdrawals/sync:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Sync pending withdrawals with Flutterwave
+ *     description: |
+ *       Synchronize all pending withdrawal requests with Flutterwave to update their statuses based on the latest transfer information.
+ *       This endpoint checks all withdrawals with status "pending" and not yet adminSynced, fetches their transfer status from Flutterwave, and updates both the withdrawal and related transaction records accordingly.
+ *     operationId: adminSyncWithdrawals
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sync completed with results for each withdrawal
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         description: Withdrawal ID
+ *                       success:
+ *                         type: boolean
+ *                       newStatus:
+ *                         type: string
+ *                         description: New status after sync (if successful)
+ *                       message:
+ *                         type: string
+ *                         description: Status update message
+ *                       error:
+ *                         type: string
+ *                         description: Error message (if any)
+ *       404:
+ *         description: No pending withdrawals found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Failed to process validation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ */
+router.post("/withdrawals/sync", auth, isAdmin, adminController.syncWithdrawals);
 
 
 module.exports = router; 

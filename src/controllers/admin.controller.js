@@ -6,6 +6,7 @@ const Settings = require('../models/settings');
 const Bookmark = require('../models/bookmark');
 const { Withdrawal, Transaction } = require('../models');
 const { Op } = require('sequelize');
+const { flw } = require('../utils/flutterwave');
 
 module.exports = {
   // Users
