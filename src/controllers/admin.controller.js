@@ -676,103 +676,125 @@ module.exports = {
   },
 
   // sync Withdrawal
-  async syncWithdrawals(req, res){
-    try{
-      // Get all pending withdrawals
-      const pendingWithdrawals = await Withdrawal.findAll({ where: { status: "pending", adminSynced: false } });
+    /**
+     * Synchronize all pending withdrawals with Flutterwave.
+     * This function can be called as an Express route handler (with req, res)
+     * or as a plain function (e.g., from a cron job).
+     * If req/res are not provided, it returns the results array.
+     */
+    async syncWithdrawals(req, res) {
+      let isApiCall = !!res; // If res is provided, it's an API call
+      try {
+        // Get all pending withdrawals
+        const pendingWithdrawals = await Withdrawal.findAll({ where: { status: "pending", adminSynced: false } });
 
-      if (!pendingWithdrawals || pendingWithdrawals.length === 0) {
-        return res.status(404).json({ success: false, error: "No pending withdrawals found." });
-      }
-
-      // To collect results for each withdrawal
-      const results = [];
-
-      for (const withdrawal of pendingWithdrawals) {
-        // Each withdrawal should have a flutterwaveTransferId
-        if (!withdrawal.flutterwaveTransferId) {
-          results.push({
-            id: withdrawal.id,
-            success: false,
-            error: "Missing flutterwaveTransferId"
-          });
-          continue;
+        if (!pendingWithdrawals || pendingWithdrawals.length === 0) {
+          if (isApiCall) {
+            return res.status(404).json({ success: false, error: "No pending withdrawals found." });
+          } else {
+            return [];
+          }
         }
 
-        const payload = {
-          id: withdrawal.flutterwaveTransferId
-        };
+        // To collect results for each withdrawal
+        const results = [];
 
-        try {
-          // Fetch transfer status from Flutterwave
-          const response = await flw.Transfer.get_a_transfer(payload);
-
-          // Check if response is valid and contains data
-          if (
-            !response ||
-            response.status !== "success" ||
-            !response.data ||
-            !response.data.status
-          ) {
+        for (const withdrawal of pendingWithdrawals) {
+          // Each withdrawal should have a flutterwaveTransferId
+          if (!withdrawal.flutterwaveTransferId) {
             results.push({
               id: withdrawal.id,
               success: false,
-              error: response?.message || "Failed to fetch transfer status",
-              data: response
+              error: "Missing flutterwaveTransferId"
             });
             continue;
           }
 
-          // Map Flutterwave status to our status
-          let newStatus;
-          switch (response.data.status.toLowerCase()) {
-            case "success":
-            case "completed":
-              newStatus = "completed";
-              break;
-            case "failed":
-            case "reversed":
-              newStatus = "failed";
-              break;
-            case "pending":
-            default:
-              newStatus = "pending";
+          const payload = {
+            id: withdrawal.flutterwaveTransferId
+          };
+
+          try {
+            // Fetch transfer status from Flutterwave
+            const response = await flw.Transfer.get_a_transfer(payload);
+
+            // Defensive: Check if response and response.data exist
+            const fwStatus = response && response.data && response.data.status
+              ? response.data.status
+              : undefined;
+
+            if (
+              !response ||
+              response.status !== "success" ||
+              !fwStatus
+            ) {
+              results.push({
+                id: withdrawal.id,
+                success: false,
+                error: (response && response.message) || "Failed to fetch transfer status",
+                data: response
+              });
+              continue;
+            }
+
+            // Map Flutterwave status to our status
+            let newStatus;
+            switch (fwStatus.toLowerCase()) {
+              case "success":
+              case "completed":
+                newStatus = "completed";
+                break;
+              case "failed":
+              case "reversed":
+                newStatus = "failed";
+                break;
+              case "pending":
+              default:
+                newStatus = "pending";
+            }
+
+            // Update Withdrawal status
+            await Withdrawal.update(
+              { status: newStatus, adminSynced: true },
+              { where: { id: withdrawal.id } }
+            );
+
+            // Update Transaction status where reference matches withdrawal reference
+            await Transaction.update(
+              { status: newStatus },
+              { where: { reference: withdrawal.reference } }
+            );
+
+            results.push({
+              id: withdrawal.id,
+              success: true,
+              newStatus,
+              message: "Transaction status updated"
+            });
+          } catch (err) {
+            results.push({
+              id: withdrawal.id,
+              success: false,
+              error: err && err.message ? err.message : "Error updating transaction"
+            });
           }
+        }
 
-          // Update Withdrawal status
-          await Withdrawal.update(
-            { status: newStatus, adminSynced: true },
-            { where: { id: withdrawal.id } }
-          );
-
-          // Update Transaction status where reference matches withdrawal reference
-          await Transaction.update(
-            { status: newStatus },
-            { where: { reference: withdrawal.reference } }
-          );
-
-          results.push({
-            id: withdrawal.id,
-            success: true,
-            newStatus,
-            message: "Transaction status updated"
-          });
-        } catch (err) {
-          results.push({
-            id: withdrawal.id,
-            success: false,
-            error: err.message || "Error updating transaction"
-          });
+        if (isApiCall) {
+          return res.json({ success: true, data: results });
+        } else {
+          return results;
+        }
+      } catch (error) {
+        console.error('Get transactions error:', error);
+        if (isApiCall) {
+          return res.status(500).json({ success: false, error: 'Failed to process validation' });
+        } else {
+          throw error;
         }
       }
+    },
 
-      return res.json({ success: true, data: results });
-
-    }catch (error){
-      console.error('Get transactions error:', error);
-      return res.status(500).json({ success: false, error: 'Failed to process validation' });
-    }
-  },
 
   // Update a withdrawal request (e.g., approve, reject, mark as completed/failed)
   async updateWithdrawal(req, res) {
