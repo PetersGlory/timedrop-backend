@@ -4,7 +4,7 @@ const Order = require('../models/order');
 const Portfolio = require('../models/portfolio');
 const Settings = require('../models/settings');
 const Bookmark = require('../models/bookmark');
-const { Withdrawal, Transaction } = require('../models');
+const { Withdrawal, Transaction, Wallet } = require('../models');
 const { Op } = require('sequelize');
 const { flw } = require('../utils/flutterwave');
 
@@ -710,6 +710,9 @@ module.exports = {
             continue;
           }
 
+          const userWallet = await Wallet.findOne({where:{userId:withdrawal.userId}});
+
+
           const payload = {
             id: withdrawal.flutterwaveTransferId
           };
@@ -758,6 +761,15 @@ module.exports = {
               { status: newStatus, adminSynced: true },
               { where: { id: withdrawal.id } }
             );
+
+            if(newStatus == "completed"){
+              if(userWallet){
+                const newbalance = parseFloat(userWallet.balance) + parseFloat(userWallet.transaction_fee);
+                const balance = newbalance + parseFloat(withdrawal.amount);
+                userWallet.balance = balance;
+                await userWallet.save();
+              }
+            }
 
             // Update Transaction status where reference matches withdrawal reference
             await Transaction.update(

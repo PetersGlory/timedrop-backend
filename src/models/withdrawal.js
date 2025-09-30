@@ -15,6 +15,10 @@ const Withdrawal = sequelize.define('Withdrawal', {
     type: DataTypes.DECIMAL(20, 2),
     allowNull: false
   },
+  transaction_fee: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   currency: {
     type: DataTypes.STRING,
     allowNull: false,

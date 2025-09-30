@@ -220,6 +220,7 @@ module.exports = {
         amount: withdrawalAmount,
         currency: wallet.currency || 'NGN',
         status: transferData.status == "success" ? "completed" : 'pending',
+        transaction_fee: fee,
         processedAt: new Date(),
         reason: narration || null,
         reference: transferData.reference || reference,
