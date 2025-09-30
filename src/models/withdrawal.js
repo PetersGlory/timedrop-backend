@@ -29,6 +29,11 @@ const Withdrawal = sequelize.define('Withdrawal', {
     type: DataTypes.DATE,
     allowNull: true
   },
+  adminSynced:{
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue:false
+  },
   reason: {
     type: DataTypes.STRING,
     allowNull: true

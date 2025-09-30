@@ -161,7 +161,7 @@ router.post('/webhook', walletController.payoutWebhook);
 // veifying account
 /**
  * @swagger
- * /api/wallet/verify-withdrawals:
+ * /wallets/verify-withdrawals:
  *   post:
  *     summary: Validate a withdrawal transaction status with Flutterwave
  *     description: Checks the status of a withdrawal transaction using the Flutterwave transfer ID.

@@ -674,6 +674,105 @@ module.exports = {
     }
   },
 
+  // sync Withdrawal
+  async syncWithdrawals(req, res){
+    try{
+      // Get all pending withdrawals
+      const pendingWithdrawals = await Withdrawal.findAll({ where: { status: "pending", adminSynced: false } });
+
+      if (!pendingWithdrawals || pendingWithdrawals.length === 0) {
+        return res.status(404).json({ success: false, error: "No pending withdrawals found." });
+      }
+
+      // To collect results for each withdrawal
+      const results = [];
+
+      for (const withdrawal of pendingWithdrawals) {
+        // Each withdrawal should have a flutterwaveTransferId
+        if (!withdrawal.flutterwaveTransferId) {
+          results.push({
+            id: withdrawal.id,
+            success: false,
+            error: "Missing flutterwaveTransferId"
+          });
+          continue;
+        }
+
+        const payload = {
+          id: withdrawal.flutterwaveTransferId
+        };
+
+        try {
+          // Fetch transfer status from Flutterwave
+          const response = await flw.Transfer.get_a_transfer(payload);
+
+          // Check if response is valid and contains data
+          if (
+            !response ||
+            response.status !== "success" ||
+            !response.data ||
+            !response.data.status
+          ) {
+            results.push({
+              id: withdrawal.id,
+              success: false,
+              error: response?.message || "Failed to fetch transfer status",
+              data: response
+            });
+            continue;
+          }
+
+          // Map Flutterwave status to our status
+          let newStatus;
+          switch (response.data.status.toLowerCase()) {
+            case "success":
+            case "completed":
+              newStatus = "completed";
+              break;
+            case "failed":
+            case "reversed":
+              newStatus = "failed";
+              break;
+            case "pending":
+            default:
+              newStatus = "pending";
+          }
+
+          // Update Withdrawal status
+          await Withdrawal.update(
+            { status: newStatus, adminSynced: true },
+            { where: { id: withdrawal.id } }
+          );
+
+          // Update Transaction status where reference matches withdrawal reference
+          await Transaction.update(
+            { status: newStatus },
+            { where: { reference: withdrawal.reference } }
+          );
+
+          results.push({
+            id: withdrawal.id,
+            success: true,
+            newStatus,
+            message: "Transaction status updated"
+          });
+        } catch (err) {
+          results.push({
+            id: withdrawal.id,
+            success: false,
+            error: err.message || "Error updating transaction"
+          });
+        }
+      }
+
+      return res.json({ success: true, data: results });
+
+    }catch (error){
+      console.error('Get transactions error:', error);
+      return res.status(500).json({ success: false, error: 'Failed to process validation' });
+    }
+  },
+
   // Update a withdrawal request (e.g., approve, reject, mark as completed/failed)
   async updateWithdrawal(req, res) {
     try {

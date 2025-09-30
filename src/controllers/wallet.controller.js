@@ -372,16 +372,62 @@ module.exports = {
   async validateTransactionFlutterwave(req, res){
     const {transactionId} = req.body;
     try{
-      const transactionInfo = await Withdrawal.findOne({where:{id:transactionId}});
-      if(!transactionInfo){
-       return res.status(404).json({success:false, error: "Withdrawals not found."})
+      const transactionInfo = await Withdrawal.findOne({ where: { id: transactionId } });
+      if (!transactionInfo) {
+        return res.status(404).json({ success: false, error: "Withdrawals not found." });
       }
       const payload = {
         id: transactionInfo.flutterwaveTransferId
+      };
+
+      // Fetch transfer status from Flutterwave
+      const response = await flw.Transfer.get_a_transfer(payload);
+
+      // Check if response is valid and contains data
+      if (
+        !response ||
+        response.status !== "success" ||
+        !response.data ||
+        !response.data.status
+      ) {
+        return res.status(500).json({
+          success: false,
+          error: response?.message || "Failed to fetch transfer status",
+          data: response
+        });
       }
 
-      const response = await flw.Transfer.get_a_transfer(payload);
-      return res.json({ success: true, data: response });
+      // Map Flutterwave status to our status
+      let newStatus;
+      switch (response.data.status.toLowerCase()) {
+        case "success":
+        case "completed":
+          newStatus = "completed";
+          break;
+        case "failed":
+        case "reversed":
+          newStatus = "failed";
+          break;
+        case "pending":
+        default:
+          newStatus = "pending";
+      }
+
+      // Update Withdrawal status
+      await Withdrawal.update(
+        { status: newStatus, adminSynced:true },
+        { where: { id: transactionId } }
+      );
+
+      // Update Transaction status where reference matches withdrawal reference
+      await Transaction.update(
+        { status: newStatus },
+        { where: { reference: transactionInfo.reference } }
+      );
+
+      return res.json({ success: true, data: {
+        message: "Transaction completed successfully"
+      } });
 
     }catch (error){
       console.error('Get transactions error:', error);
