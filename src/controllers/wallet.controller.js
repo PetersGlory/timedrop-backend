@@ -1,5 +1,6 @@
 const { default: axios } = require('axios');
 const { Withdrawal, Wallet, Transaction } = require('../models');
+const { flw } = require('../utils/flutterwave');
 
 // Flutterwave configuration
 const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
@@ -244,7 +245,7 @@ module.exports = {
         userId: req.user.id
       });
 
-      res.json({
+      return res.json({
         success: true,
         message: fwData.data.message || 'Transfer Queued Successfully',
         data: transferData
@@ -252,7 +253,7 @@ module.exports = {
 
     } catch (error) {
       console.error('Payout error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json({
+      return res.status(error.response?.status || 500).json({
         success: false,
         error: error.response?.data?.message || error.message || 'Payout failed',
         errorbody:error.response?.data
@@ -343,10 +344,10 @@ module.exports = {
         where: { userId },
         order: [['createdAt', 'DESC']]
       });
-      res.json({ success: true, withdrawals });
+      return res.json({ success: true, withdrawals });
     } catch (error) {
       console.error('Get withdrawals error:', error);
-      res.status(500).json({ success: false, error: 'Failed to fetch withdrawals' });
+      return res.status(500).json({ success: false, error: 'Failed to fetch withdrawals' });
     }
   },
 
@@ -361,10 +362,30 @@ module.exports = {
         order: [['created_at', 'DESC']]
       });
 
-      res.json({ success: true, transactions });
+      return res.json({ success: true, transactions });
     } catch (error) {
       console.error('Get transactions error:', error);
-      res.status(500).json({ success: false, error: 'Failed to fetch transactions' });
+      return res.status(500).json({ success: false, error: 'Failed to fetch transactions' });
     }
   },
+
+  async validateTransactionFlutterwave(req, res){
+    const {transactionId} = req.body;
+    try{
+      const transactionInfo = await Withdrawal.findOne({where:{id:transactionId}});
+      if(!transactionInfo){
+       return res.status(404).json({success:false, error: "Withdrawals not found."})
+      }
+      const payload = {
+        id: transactionInfo.flutterwaveTransferId
+      }
+
+      const response = await flw.Transfer.get_a_transfer(payload);
+      return res.json({ success: true, data: response });
+
+    }catch (error){
+      console.error('Get transactions error:', error);
+      return res.status(500).json({ success: false, error: 'Failed to process validation' });
+    }
+  }
 };

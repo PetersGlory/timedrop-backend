@@ -157,4 +157,67 @@ router.get('/transactions', auth, walletController.getTransactions);
  */
 router.post('/webhook', walletController.payoutWebhook);
 
+
+// veifying account
+/**
+ * @swagger
+ * /api/wallet/verify-withdrawals:
+ *   post:
+ *     summary: Validate a withdrawal transaction status with Flutterwave
+ *     description: Checks the status of a withdrawal transaction using the Flutterwave transfer ID.
+ *     tags:
+ *       - Wallet
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - transactionId
+ *             properties:
+ *               transactionId:
+ *                 type: integer
+ *                 description: The ID of the withdrawal transaction to validate.
+ *                 example: 123
+ *     responses:
+ *       200:
+ *         description: Transaction validation result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   description: Flutterwave transfer response data
+ *       404:
+ *         description: Withdrawal not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Failed to process validation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ */
+router.post("/verify-withdrawals", auth, walletController.validateTransactionFlutterwave);
+
 module.exports = router;
