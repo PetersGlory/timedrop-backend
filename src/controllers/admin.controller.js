@@ -710,8 +710,6 @@ module.exports = {
             continue;
           }
 
-          const userWallet = await Wallet.findOne({where:{userId:withdrawal.userId}});
-
 
           const payload = {
             id: withdrawal.flutterwaveTransferId
@@ -762,20 +760,34 @@ module.exports = {
               { where: { id: withdrawal.id } }
             );
 
-            if(newStatus == "completed"){
-              if(userWallet){
-                const newbalance = parseFloat(userWallet.balance) + parseFloat(userWallet.transaction_fee);
-                const balance = newbalance + parseFloat(withdrawal.amount);
-                userWallet.balance = balance;
-                await userWallet.save();
-              }
-            }
-
             // Update Transaction status where reference matches withdrawal reference
             await Transaction.update(
               { status: newStatus },
               { where: { reference: withdrawal.reference } }
             );
+
+            if (newStatus === "completed") {
+              const userWallet = await Wallet.findOne({ 
+                where: { userId: withdrawal.userId } 
+              });
+              
+              if (!userWallet) {
+                throw new Error(`Wallet not found for user ${withdrawal.userId}`);
+              }
+              
+              // Calculate new balance: current balance + transaction fee + withdrawal amount
+              const currentBalance = parseFloat(userWallet.balance) || 0;
+              const transactionFee = parseFloat(withdrawal.transaction_fee) || 0;
+              const withdrawalAmount = parseFloat(withdrawal.amount) || 0;
+              
+              const newBalance = currentBalance + transactionFee + withdrawalAmount;
+              
+              // Update wallet
+              userWallet.balance = newBalance.toFixed(2); // Keep 2 decimal places
+              await userWallet.save();
+              
+              console.log(`✅ Wallet updated for user ${withdrawal.userId}: ${currentBalance} + ${transactionFee} + ${withdrawalAmount} = ${newBalance}`);
+            }
 
             results.push({
               id: withdrawal.id,
