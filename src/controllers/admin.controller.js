@@ -676,150 +676,171 @@ module.exports = {
   },
 
   // sync Withdrawal
-    /**
-     * Synchronize all pending withdrawals with Flutterwave.
-     * This function can be called as an Express route handler (with req, res)
-     * or as a plain function (e.g., from a cron job).
-     * If req/res are not provided, it returns the results array.
-     */
-    async syncWithdrawals(req, res) {
-      let isApiCall = !!res; // If res is provided, it's an API call
-      try {
-        // Get all pending withdrawals
-        const pendingWithdrawals = await Withdrawal.findAll({ where: { status: "pending" } });
+  /**
+   * syncWithdrawals
+   * 
+   * This function checks all pending withdrawals and updates their status based on Flutterwave's response.
+   * 
+   * NOTE: If you are seeing the user's wallet being updated 3 times, it is likely because there are 3 separate
+   * withdrawal records for that user that all meet the criteria:
+   *   - status: "pending"
+   *   - adminSynced: false
+   * and all 3 are being marked as "completed" in this batch process.
+   * 
+   * For each withdrawal that is marked as "completed", the wallet is updated by adding
+   * (withdrawal.amount + withdrawal.transaction_fee) to the current balance.
+   * 
+   * If you want to prevent multiple updates for the same user in a single run, you need to
+   * either:
+   *   - ensure only one withdrawal per user is pending at a time, or
+   *   - change the logic to only update the wallet once per user per batch, or
+   *   - ensure that the withdrawal records are not duplicated in the database.
+   * 
+   * The current logic is correct if each withdrawal is a separate, independent transaction.
+   */
+  async syncWithdrawals(req, res) {
+    let isApiCall = !!res; // If res is provided, it's an API call
+    try {
+      // Get all pending withdrawals
+      const pendingWithdrawals = await Withdrawal.findAll({ where: { status: "pending", adminSynced: false } });
 
-        if (!pendingWithdrawals || pendingWithdrawals.length === 0) {
-          if (isApiCall) {
-            return res.status(404).json({ success: false, error: "No pending withdrawals found." });
-          } else {
-            return [];
-          }
+      if (!pendingWithdrawals || pendingWithdrawals.length === 0) {
+        if (isApiCall) {
+          return res.status(404).json({ success: false, error: "No pending withdrawals found." });
+        } else {
+          return [];
+        }
+      }
+
+      // To collect results for each withdrawal
+      const results = [];
+
+      for (const withdrawal of pendingWithdrawals) {
+        // Each withdrawal should have a flutterwaveTransferId
+        if (!withdrawal.flutterwaveTransferId) {
+          results.push({
+            id: withdrawal.id,
+            success: false,
+            error: "Missing flutterwaveTransferId"
+          });
+          continue;
         }
 
-        // To collect results for each withdrawal
-        const results = [];
+        const payload = {
+          id: withdrawal.flutterwaveTransferId
+        };
 
-        for (const withdrawal of pendingWithdrawals) {
-          // Each withdrawal should have a flutterwaveTransferId
-          if (!withdrawal.flutterwaveTransferId) {
+        try {
+          // Fetch transfer status from Flutterwave
+          const response = await flw.Transfer.get_a_transfer(payload);
+
+          // Defensive: Check if response and response.data exist
+          const fwStatus = response && response.data && response.data.status
+            ? response.data.status
+            : undefined;
+
+          if (
+            !response ||
+            response.status !== "success" ||
+            !fwStatus
+          ) {
             results.push({
               id: withdrawal.id,
               success: false,
-              error: "Missing flutterwaveTransferId"
+              error: (response && response.message) || "Failed to fetch transfer status",
+              data: response
             });
             continue;
           }
 
-
-          const payload = {
-            id: withdrawal.flutterwaveTransferId
-          };
-
-          try {
-            // Fetch transfer status from Flutterwave
-            const response = await flw.Transfer.get_a_transfer(payload);
-
-            // Defensive: Check if response and response.data exist
-            const fwStatus = response && response.data && response.data.status
-              ? response.data.status
-              : undefined;
-
-            if (
-              !response ||
-              response.status !== "success" ||
-              !fwStatus
-            ) {
-              results.push({
-                id: withdrawal.id,
-                success: false,
-                error: (response && response.message) || "Failed to fetch transfer status",
-                data: response
-              });
-              continue;
-            }
-
-            // Map Flutterwave status to our status
-            let newStatus;
-            // Map Flutterwave status to our status, including "SUCCESSFUL" as completed
-            switch (fwStatus.toLowerCase()) {
-              case "success":
-              case "completed":
-              case "successful":
-                newStatus = "completed";
-                break;
-              case "failed":
-              case "reversed":
-                newStatus = "failed";
-                break;
-              case "pending":
-              default:
-                newStatus = "pending";
-            }
-
-            // Update Withdrawal status
-            await Withdrawal.update(
-              { status: newStatus, adminSynced: true },
-              { where: { id: withdrawal.id } }
-            );
-
-            // Update Transaction status where reference matches withdrawal reference
-            await Transaction.update(
-              { status: newStatus },
-              { where: { reference: withdrawal.reference } }
-            );
-
-            if (newStatus === "completed") {
-              const userWallet = await Wallet.findOne({ 
-                where: { userId: withdrawal.userId } 
-              });
-              
-              if (!userWallet) {
-                throw new Error(`Wallet not found for user ${withdrawal.userId}`);
-              }
-              
-              // Calculate new balance: current balance + transaction fee + withdrawal amount
-              const currentBalance = parseFloat(userWallet.balance) || 0;
-              const transactionFee = parseFloat(withdrawal.transaction_fee) || 0;
-              const withdrawalAmount = parseFloat(withdrawal.amount) || 0;
-              
-              const newBalance = currentBalance + transactionFee + withdrawalAmount;
-              
-              // Update wallet
-              userWallet.balance = newBalance.toFixed(2); // Keep 2 decimal places
-              await userWallet.save();
-              
-              console.log(`✅ Wallet updated for user ${withdrawal.userId}: ${currentBalance} + ${transactionFee} + ${withdrawalAmount} = ${newBalance}`);
-            }
-
-            results.push({
-              id: withdrawal.id,
-              success: true,
-              newStatus,
-              message: "Transaction status updated"
-            });
-          } catch (err) {
-            results.push({
-              id: withdrawal.id,
-              success: false,
-              error: err && err.message ? err.message : "Error updating transaction"
-            });
+          // Map Flutterwave status to our status
+          let newStatus;
+          // Map Flutterwave status to our status, including "SUCCESSFUL" as completed
+          switch (fwStatus.toLowerCase()) {
+            case "success":
+            case "completed":
+            case "successful":
+              newStatus = "completed";
+              break;
+            case "failed":
+            case "reversed":
+              newStatus = "failed";
+              break;
+            case "pending":
+            default:
+              newStatus = "pending";
           }
-        }
 
-        if (isApiCall) {
-          return res.json({ success: true, data: results });
-        } else {
-          return results;
-        }
-      } catch (error) {
-        console.error('Get transactions error:', error);
-        if (isApiCall) {
-          return res.status(500).json({ success: false, error: 'Failed to process validation' });
-        } else {
-          throw error;
+          // Update Withdrawal status
+          await Withdrawal.update(
+            { status: newStatus, adminSynced: true },
+            { where: { id: withdrawal.id } }
+          );
+
+          // Update Transaction status where reference matches withdrawal reference
+          await Transaction.update(
+            { status: newStatus },
+            { where: { reference: withdrawal.reference } }
+          );
+
+          // 
+          // --- EXPLANATION ---
+          // The following block will run for EVERY withdrawal that is marked as "completed".
+          // If there are multiple withdrawals for the same user, the wallet will be updated multiple times.
+          // This is expected if each withdrawal is a separate transaction.
+          // 
+          if (newStatus == "failed") {
+            const userWallet = await Wallet.findOne({ 
+              where: { userId: withdrawal.userId } 
+            });
+            
+            if (!userWallet) {
+              throw new Error(`Wallet not found for user ${withdrawal.userId}`);
+            }
+            
+            // Calculate new balance: current balance + transaction fee + withdrawal amount
+            const currentBalance = parseFloat(userWallet.balance) || 0;
+            const transactionFee = parseFloat(withdrawal.transaction_fee) || 0;
+            const withdrawalAmount = parseFloat(withdrawal.amount) || 0;
+            
+            const newBalance = currentBalance + transactionFee + withdrawalAmount;
+            
+            // Update wallet
+            userWallet.balance = newBalance.toFixed(2); // Keep 2 decimal places
+            await userWallet.save();
+            
+            console.log(`✅ Wallet updated for user ${withdrawal.userId}: ${currentBalance} + ${transactionFee} + ${withdrawalAmount} = ${newBalance}`);
+          }
+
+          results.push({
+            id: withdrawal.id,
+            success: true,
+            newStatus,
+            message: "Transaction status updated"
+          });
+        } catch (err) {
+          results.push({
+            id: withdrawal.id,
+            success: false,
+            error: err && err.message ? err.message : "Error updating transaction"
+          });
         }
       }
-    },
+
+      if (isApiCall) {
+        return res.json({ success: true, data: results });
+      } else {
+        return results;
+      }
+    } catch (error) {
+      console.error('Get transactions error:', error);
+      if (isApiCall) {
+        return res.status(500).json({ success: false, error: 'Failed to process validation' });
+      } else {
+        throw error;
+      }
+    }
+  },
 
   // sync one withdrawal
   async syncOneWithdrawal(req, res) {
