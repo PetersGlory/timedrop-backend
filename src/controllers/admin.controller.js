@@ -686,7 +686,7 @@ module.exports = {
       let isApiCall = !!res; // If res is provided, it's an API call
       try {
         // Get all pending withdrawals
-        const pendingWithdrawals = await Withdrawal.findAll({ where: { status: "pending", adminSynced: false } });
+        const pendingWithdrawals = await Withdrawal.findAll({ where: { status: "pending" } });
 
         if (!pendingWithdrawals || pendingWithdrawals.length === 0) {
           if (isApiCall) {
