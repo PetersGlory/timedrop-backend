@@ -740,9 +740,11 @@ module.exports = {
 
             // Map Flutterwave status to our status
             let newStatus;
+            // Map Flutterwave status to our status, including "SUCCESSFUL" as completed
             switch (fwStatus.toLowerCase()) {
               case "success":
               case "completed":
+              case "successful":
                 newStatus = "completed";
                 break;
               case "failed":
@@ -818,6 +820,124 @@ module.exports = {
         }
       }
     },
+
+  // sync one withdrawal
+  async syncOneWithdrawal(req, res) {
+    try {
+      const { id } = req.params;
+      const withdrawal = await Withdrawal.findByPk(id);
+
+      if (!withdrawal) {
+        return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+      }
+
+      if (!withdrawal.flutterwaveTransferId) {
+        return res.status(400).json({ success: false, message: 'Missing flutterwaveTransferId for this withdrawal.' });
+      }
+
+      const payload = {
+        id: withdrawal.flutterwaveTransferId
+      };
+
+      try {
+        // Fetch transfer status from Flutterwave
+        const response = await flw.Transfer.get_a_transfer(payload);
+
+        console.log(response);
+        // return;
+
+        const fwStatus = response && response.data && response.data.status
+          ? response.data.status
+          : undefined;
+
+        if (
+          !response ||
+          response.status !== "success" ||
+          !fwStatus
+        ) {
+          return res.status(400).json({
+            success: false,
+            error: (response && response.message) || "Failed to fetch transfer status",
+            data: response
+          });
+        }
+
+        // Map Flutterwave status to our status
+        let newStatus;
+        // Map Flutterwave status to our status, including "SUCCESSFUL" as completed
+        switch (fwStatus.toLowerCase()) {
+          case "success":
+          case "completed":
+          case "successful":
+            newStatus = "completed";
+            break;
+          case "failed":
+          case "reversed":
+            newStatus = "failed";
+            break;
+          case "pending":
+          default:
+            newStatus = "pending";
+        }
+
+        // Update Withdrawal status
+        await Withdrawal.update(
+          { status: newStatus, adminSynced: true },
+          { where: { id: withdrawal.id } }
+        );
+
+        // Update Transaction status where reference matches withdrawal reference
+        await Transaction.update(
+          { status: newStatus },
+          { where: { reference: withdrawal.reference } }
+        );
+
+        // If completed, update wallet
+        if (newStatus === "completed") {
+          const userWallet = await Wallet.findOne({ 
+            where: { userId: withdrawal.userId } 
+          });
+          
+          if (!userWallet) {
+            throw new Error(`Wallet not found for user ${withdrawal.userId}`);
+          }
+          
+          // Calculate new balance: current balance + transaction fee + withdrawal amount
+          const currentBalance = parseFloat(userWallet.balance) || 0;
+          const transactionFee = parseFloat(withdrawal.transaction_fee) || 0;
+          const withdrawalAmount = parseFloat(withdrawal.amount) || 0;
+          
+          const newBalance = currentBalance + transactionFee + withdrawalAmount;
+          
+          // Update wallet
+          userWallet.balance = newBalance.toFixed(2); // Keep 2 decimal places
+          await userWallet.save();
+          
+          console.log(`✅ Wallet updated for user ${withdrawal.userId}: ${currentBalance} + ${transactionFee} + ${withdrawalAmount} = ${newBalance}`);
+        }
+
+        // Fetch updated withdrawal
+        const updatedWithdrawal = await Withdrawal.findByPk(id);
+
+        return res.json({
+          success: true,
+          id: withdrawal.id,
+          newStatus,
+          withdrawal: updatedWithdrawal,
+          message: "Transaction status updated"
+        });
+      } catch (err) {
+        return res.status(500).json({
+          success: false,
+          id: withdrawal.id,
+          error: err && err.message ? err.message : "Error updating transaction"
+        });
+      }
+    } catch (error) {
+      console.error('Sync one withdrawal error:', error);
+      return res.status(500).json({ success: false, error: 'Failed to sync withdrawal' });
+    }
+  },
 
 
   // Update a withdrawal request (e.g., approve, reject, mark as completed/failed)

@@ -1079,5 +1079,79 @@ router.patch('/withdrawals/:id', auth, isAdmin, adminController.updateWithdrawal
  */
 router.post("/withdrawals/sync", auth, isAdmin, adminController.syncWithdrawals);
 
+/**
+ * @swagger
+ * /admin/withdrawals/{id}/sync:
+ *   post:
+ *     summary: Sync the status of a single withdrawal with Flutterwave
+ *     description: |
+ *       Fetches the latest status of a specific withdrawal from Flutterwave using its flutterwaveTransferId,
+ *       updates the withdrawal and related transaction in the database, and, if completed, updates the user's wallet.
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the withdrawal to sync
+ *     responses:
+ *       200:
+ *         description: Withdrawal status successfully synced
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 newStatus:
+ *                   type: string
+ *                   description: New status after sync (if successful)
+ *                 message:
+ *                   type: string
+ *                   description: Status update message
+ *       400:
+ *         description: Bad request (e.g., missing flutterwaveTransferId or failed to fetch status)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ *       404:
+ *         description: Withdrawal not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Failed to process validation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ */
+router.post("/withdrawals/:id/sync", auth, isAdmin, adminController.syncOneWithdrawal);
+
+
 
 module.exports = router; 
