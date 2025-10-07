@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const app = require('./app');
 const adminController = require('./controllers/admin.controller');
+const payoutController = require('./controllers/payout.controller');
 const { sequelize, syncDatabase } = require('./models');
 const cron = require('node-cron');
 
@@ -16,6 +17,7 @@ const initCronJobs = () => {
     try {
       // Call your controller function
       await adminController.syncWithdrawals(); // Added await if it's async
+      await payoutController.runPrepareCollectionCronjob();
       console.log('✅ Withdrawal sync completed successfully');
     } catch (error) {
       console.error('❌ Error in cron job:', error.message);
