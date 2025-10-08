@@ -772,10 +772,17 @@ module.exports = {
           }
 
           // Update Withdrawal status
-          await Withdrawal.update(
-            { status: newStatus, adminSynced: true },
-            { where: { id: withdrawal.id } }
-          );
+          if(newStatus == "pending"){
+            await Withdrawal.update(
+              { status: newStatus, adminSynced: false },
+              { where: { id: withdrawal.id } }
+            );
+          }else{
+            await Withdrawal.update(
+              { status: newStatus, adminSynced: true },
+              { where: { id: withdrawal.id } }
+            );
+          }
 
           // Update Transaction status where reference matches withdrawal reference
           await Transaction.update(
