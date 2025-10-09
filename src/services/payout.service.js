@@ -63,36 +63,27 @@ class DualBalancePayoutService {
     }
 
     /**
-     * Transfer funds from collection balance to settlement balance
-     * This is necessary before you can make payouts from collection balance
+     * Method 2: Manual transfer between your own balances (Collection to Settlement)
+     * Using direct API call since the SDK might not support this specific use case
      */
     async transferCollectionToSettlement(amount, currency = 'NGN') {
         try {
-            console.log(`Transferring ${amount} ${currency} from collection to settlement balance`);
+            console.log(`Attempting to transfer ${amount} ${currency} from collection to settlement`);
 
-            // Get your own merchant ID
-            const merchantId = process.env.FLW_MERCHANT_ID;
-
+            // OPTION A: Try the standard transfer endpoint with your own details
             const payload = {
-                action: 'instant',
-                type: 'wallet',
-                payment_instruction: {
-                    source_currency: currency,
-                    amount: {
-                        applies_to: 'destination_currency',
-                        value: amount
-                    },
-                    recipient: {
-                        wallet: {
-                            provider: 'flutterwave',
-                            identifier: merchantId // Your own merchant ID
-                        }
-                    },
-                    destination_currency: currency
-                },
-                narration: 'Transfer from collection to settlement balance',
-                reference: `COL_TO_SET_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                account_bank: "000", // Special code for Flutterwave wallet
+                account_number: process.env.FLW_MERCHANT_ID, // Your merchant ID
+                amount: amount,
+                narration: "Collection to Settlement Transfer",
+                currency: currency,
+                reference: `COL2SET_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                debit_currency: currency,
+                // This tells Flutterwave to do an internal wallet transfer
+                beneficiary_name: "Internal Transfer"
             };
+
+            console.log('Transfer payload:', JSON.stringify(payload, null, 2));
 
             const response = await axios.post(
                 `${this.baseURL}/transfers`,
@@ -105,22 +96,24 @@ class DualBalancePayoutService {
                 }
             );
 
+            console.log('Transfer response:', JSON.stringify(response.data, null, 2));
+
             if (response.data.status === 'success') {
                 return {
                     success: true,
                     transferId: response.data.data.id,
                     reference: response.data.data.reference,
-                    message: 'Funds transferred to settlement balance'
+                    message: 'Transfer initiated successfully'
                 };
             }
 
             throw new Error(response.data.message || 'Transfer failed');
+
         } catch (error) {
-            console.error('Error transferring to settlement:', error);
-            return {
-                success: false,
-                message: error.response?.data?.message || error.message
-            };
+            console.error('Collection to settlement transfer error:', error.response?.data || error.message);
+            
+            // If this method fails, try the alternative approach
+            return await this.alternativeBalanceTransfer(amount, currency);
         }
     }
 
@@ -321,6 +314,79 @@ class DualBalancePayoutService {
                 success: false,
                 message: error.message
             };
+        }
+    }
+
+    /**
+     * Alternative Method: Using balance endpoint to move funds
+     * This is the MANUAL way - instructing you to do it via dashboard
+     */
+    async alternativeBalanceTransfer(amount, currency = 'NGN') {
+        try {
+            console.log('Trying alternative method...');
+            
+            // Get current balances to verify
+            const balances = await this.getAllBalances();
+            // Fix: Use balances.collection instead of balances.data, and check for undefined
+            const collectionBalance = balances.collection && balances.collection[currency] && balances.collection[currency].amount >= amount
+                ? { 
+                    currency: currency, 
+                    ledger_balance: balances.collection[currency].amount 
+                  }
+                : null;
+
+            if (!collectionBalance) {
+                return {
+                    success: false,
+                    message: `Insufficient collection balance. Available: ${collectionBalance?.ledger_balance || 0}`,
+                    manual_action_required: true,
+                    instructions: [
+                        '1. Log into your Flutterwave dashboard',
+                        '2. Go to Payments > Transfers',
+                        '3. Click "New Transfer" > "Transfer to a Flutterwave account"',
+                        `4. Transfer ${amount} ${currency} to your own merchant ID: ${process.env.FLW_MERCHANT_ID}`,
+                        '5. This will move funds from collection to settlement balance'
+                    ]
+                };
+            }
+
+            // If we have the balance, provide manual instructions
+            return {
+                success: false,
+                message: 'Automatic collection to settlement transfer not available via API',
+                manual_action_required: true,
+                available_balance: collectionBalance.ledger_balance,
+                instructions: [
+                    '⚠️ IMPORTANT: Flutterwave does not support automatic collection-to-settlement transfers via API.',
+                    '',
+                    'You have two options:',
+                    '',
+                    'OPTION 1 - Manual Transfer (Immediate):',
+                    '1. Log into your Flutterwave dashboard at https://dashboard.flutterwave.com',
+                    '2. Navigate to: Payments > Transfers',
+                    '3. Click "New Transfer"',
+                    '4. Select "Transfer to a Flutterwave account"',
+                    '5. Choose your collection balance as source',
+                    `6. Enter amount: ${amount} ${currency}`,
+                    `7. Enter your own Merchant ID: ${process.env.FLW_MERCHANT_ID}`,
+                    '8. Confirm the transfer',
+                    '',
+                    'OPTION 2 - Wait for Auto-Settlement:',
+                    '1. Flutterwave automatically moves funds from collection to settlement',
+                    '2. Settlement happens based on your configured settlement schedule',
+                    '3. Check your dashboard Settings > Settlement for your schedule',
+                    '4. Default is usually daily or T+1 (next business day)',
+                    '',
+                    'OPTION 3 - Use Settlement Balance Only:',
+                    '1. Only initiate payouts from your settlement balance',
+                    '2. Wait for funds to auto-settle before making withdrawals',
+                    '3. This is the recommended approach'
+                ]
+            };
+
+        } catch (error) {
+            console.error('Alternative method error:', error);
+            throw error;
         }
     }
 
