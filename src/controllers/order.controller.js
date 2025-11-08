@@ -45,160 +45,174 @@ module.exports = {
     }
   },
 
-  // Create a new order for the authenticated user, with orderPair logic
-async createOrder(req, res) {
-  try {
-    const { marketId, type, quantity, price } = req.body;
+  // Create a new order for the authenticated user, with multi-order pairing logic
+  async createOrder(req, res) {
+    try {
+      const { marketId, type, quantity, price } = req.body;
 
-    // Validate required fields
-    if (!marketId || !type || !quantity || !price) {
-      return res.status(400).json({ message: 'marketId, type, quantity, and price are required' });
-    }
-
-    // Validate order type
-    if (!['BUY', 'SELL'].includes(type)) {
-      return res.status(400).json({ message: 'Order type must be BUY or SELL' });
-    }
-
-    let order;
-
-    const prevOrder = await Order.findOne({
-      where: {
-        marketId,
-        userId: req.user.id,
-        price,
-        type
+      // Validate required fields
+      if (!marketId || !type || !quantity || !price) {
+        return res.status(400).json({ message: 'marketId, type, quantity, and price are required' });
       }
-    });
 
-    if (prevOrder) {
-      return res.status(422).json({
-        message: "You already have an order with the same market, type, and price."
+      // Validate order type
+      if (!['BUY', 'SELL'].includes(type)) {
+        return res.status(400).json({ message: 'Order type must be BUY or SELL' });
+      }
+
+      // Check for duplicate order
+      const prevOrder = await Order.findOne({
+        where: {
+          marketId,
+          userId: req.user.id,
+          price,
+          type
+        }
       });
-    }
 
-    // Fetch user, wallet, and market
-    const user = await User.findByPk(req.user.id);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+      if (prevOrder) {
+        return res.status(422).json({
+          message: "You already have an order with the same market, type, and price."
+        });
+      }
 
-    const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-    if (!wallet) {
-      return res.status(404).json({ message: 'Wallet not found' });
-    }
+      // Fetch user, wallet, and market
+      const user = await User.findByPk(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
 
-    const market = await Market.findOne({ where: { id: marketId } });
-    if (!market) {
-      return res.status(404).json({ message: 'Market not found' });
-    }
+      const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
+      if (!wallet) {
+        return res.status(404).json({ message: 'Wallet not found' });
+      }
 
-    // Calculate total cost for BUY, or check asset for SELL
-    const totalCost = parseFloat(price);
+      const market = await Market.findOne({ where: { id: marketId } });
+      if (!market) {
+        return res.status(404).json({ message: 'Market not found' });
+      }
 
-    if (parseFloat(wallet.balance) < totalCost) {
-      return res.status(400).json({ message: 'Insufficient wallet balance' });
-    }
-    if (type !== null) {
-      // Deduct from wallet
+      // Calculate total cost and deduct from wallet
+      const totalCost = parseFloat(price);
+      if (parseFloat(wallet.balance) < totalCost) {
+        return res.status(400).json({ message: 'Insufficient wallet balance' });
+      }
+
       wallet.balance = (parseFloat(wallet.balance) - totalCost).toFixed(8);
       await wallet.save();
-    }
-    // For SELL, you would check asset balance (not implemented here)
 
-    // Helper function to check if orderPair has room for more users
-    const hasRoomInOrderPair = (orderPair) => {
-      return !orderPair || (Array.isArray(orderPair) && orderPair.length < 2);
-    };
+      const oppositeType = type === 'BUY' ? 'SELL' : 'BUY';
+      const requestedQuantity = parseFloat(quantity);
 
-    // Helper function to check if user is already in orderPair
-    const isUserInOrderPair = (orderPair, userId) => {
-      return orderPair && Array.isArray(orderPair) && orderPair.includes(userId);
-    };
+      // Find all matching opposite orders (FIFO - ordered by creation date)
+      const matchingOrders = await Order.findAll({
+        where: {
+          marketId,
+          price,
+          type: oppositeType,
+          status: { [Op.in]: ['Open', 'PartiallyPaired'] }, // Can match with open or partially paired orders
+          userId: { [Op.ne]: req.user.id }
+        },
+        order: [['createdAt', 'ASC']] // FIFO ordering
+      });
 
-    // Attempt to find a matching order for pairing
-    // Match: same market, same price, opposite type, status Open, orderPair has room, and not by this user
-    const oppositeType = type === 'BUY' ? 'SELL' : 'BUY';
-    
-    // Get all potential matching orders
-    const potentialMatches = await Order.findAll({
-      where: {
+      let remainingQuantity = requestedQuantity;
+      let orderPair = [req.user.id];
+      let matchedOrderIds = [];
+      let totalMatchedQuantity = 0;
+
+      // Try to match with existing orders
+      for (const matchOrder of matchingOrders) {
+        if (remainingQuantity <= 0) break;
+
+        // Calculate how much this order still needs to be filled
+        const matchOrderFilled = matchOrder.filledQuantity || 0;
+        const matchOrderRemaining = parseFloat(matchOrder.quantity) - matchOrderFilled;
+
+        if (matchOrderRemaining <= 0) continue; // Skip fully filled orders
+
+        // Calculate how much we can match with this order
+        const matchAmount = Math.min(remainingQuantity, matchOrderRemaining);
+
+        // Update the matched order
+        const newFilledQuantity = matchOrderFilled + matchAmount;
+        const existingPair = matchOrder.orderPair || [];
+        
+        // Add current user to the matched order's pair if not already present
+        if (!existingPair.includes(req.user.id)) {
+          existingPair.push(req.user.id);
+        }
+
+        matchOrder.orderPair = existingPair;
+        matchOrder.filledQuantity = newFilledQuantity;
+        
+        // Update status based on fill
+        if (newFilledQuantity >= parseFloat(matchOrder.quantity)) {
+          matchOrder.status = 'Paired';
+        } else {
+          matchOrder.status = 'PartiallyPaired';
+        }
+
+        await matchOrder.save();
+
+        // Add matched order's user to our orderPair if not already present
+        if (!orderPair.includes(matchOrder.userId)) {
+          orderPair.push(matchOrder.userId);
+        }
+
+        matchedOrderIds.push(matchOrder.id);
+        totalMatchedQuantity += matchAmount;
+        remainingQuantity -= matchAmount;
+      }
+
+      // Determine status for the new order
+      let orderStatus;
+      if (totalMatchedQuantity >= requestedQuantity) {
+        orderStatus = 'Paired';
+      } else if (totalMatchedQuantity > 0) {
+        orderStatus = 'PartiallyPaired';
+      } else {
+        orderStatus = 'Open';
+      }
+
+      // Create the new order
+      const newOrder = await Order.create({
         marketId,
-        price,
-        type: oppositeType,
-        status: 'Open',
-        userId: { [Op.ne]: req.user.id } // Using Sequelize operator for 'not equal'
-      }
-    });
-
-    // Filter for orders that have room in their orderPair and don't already include this user
-    let matchedOrder = null;
-    for (const order of potentialMatches) {
-      if (hasRoomInOrderPair(order.orderPair) && !isUserInOrderPair(order.orderPair, req.user.id)) {
-        matchedOrder = order;
-        break;
-      }
-    }
-
-    let orderPair = null;
-    let isPaired = false;
-
-    if (matchedOrder) {
-      // Pair with the matched order
-      const existingPair = matchedOrder.orderPair || [];
-      orderPair = [...existingPair, req.user.id];
-      
-      // Update the matched order's orderPair
-      matchedOrder.orderPair = orderPair;
-      matchedOrder.secondType = type;
-      matchedOrder.status = 'Paired';
-      await matchedOrder.save();
-      
-      isPaired = true;
-      
-      // If orderPair is now full (2 users), mark both orders as paired/matched
-      if (orderPair.length === 2) {
-        // You might want to update status or add additional logic here
-        // For example, create a transaction record, update market stats, etc.
-        console.log(`Order ${matchedOrder.id} paired with new order for users: ${orderPair.join(', ')}`);
-      }
-      order = matchedOrder
-    } else {
-      // No match found, create a new pair with only this user
-      orderPair = [req.user.id];
-      // Create the order according to order.js model, including orderPair
-      order = await Order.create({
-        marketId,
-        marketName: market.question || market.category || '', // fallback if marketName is not present
+        marketName: market.question || market.category || '',
         userId: req.user.id,
         type,
         secondType: oppositeType,
         price,
-        quantity,
-        status: 'Open',
-        orderPair
+        quantity: requestedQuantity,
+        filledQuantity: totalMatchedQuantity,
+        status: orderStatus,
+        orderPair: orderPair.length > 1 ? orderPair : [req.user.id] // Only include pair if matched
       });
+
+      // Prepare response
+      const response = {
+        success: true,
+        order: newOrder,
+        pairingInfo: {
+          status: orderStatus,
+          requestedQuantity,
+          filledQuantity: totalMatchedQuantity,
+          remainingQuantity,
+          isPaired: orderStatus === 'Paired',
+          isPartiallyPaired: orderStatus === 'PartiallyPaired',
+          matchedWithOrders: matchedOrderIds,
+          orderPairUsers: orderPair,
+          pairSize: orderPair.length
+        }
+      };
+
+      res.status(201).json(response);
+      
+    } catch (error) {
+      console.error('Error creating order:', error);
+      res.status(400).json({ message: 'Invalid input', error: error.message });
     }
-
-    // Prepare response with additional pairing information
-    const response = {
-      success: true,
-      order,
-      pairingInfo: {
-        isPaired,
-        pairSize: orderPair.length,
-        pairedWith: isPaired ? matchedOrder.id : null,
-        orderPairUsers: orderPair
-      }
-    };
-
-    res.status(201).json(response);
-    
-  } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(400).json({ message: 'Invalid input', error: error.message });
-  }
-},
+  },
 
   // Cancel an open order by ID for the authenticated user
   async cancelOrder(req, res) {

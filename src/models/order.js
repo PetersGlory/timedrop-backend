@@ -34,14 +34,18 @@ const Order = sequelize.define('Order', {
   orderPair: {
     type: DataTypes.JSON,
     allowNull: true,
-    comment: 'Pairs two users together by their IDs; should not exceed 2 users'
+    comment: 'Pairs users together by their IDs'
+  },
+  filledQuantity: {
+    type: DataTypes.DECIMAL(20, 8),
+    defaultValue: 0
   },
   quantity: {
     type: DataTypes.INTEGER,
     allowNull: false
   },
   status: {
-    type: DataTypes.ENUM('Open', 'Filled', 'Cancelled', 'Paired'),
+    type: DataTypes.ENUM('Open', 'Filled', 'Cancelled', 'Paired', 'PartiallyPaired'),
     defaultValue: 'Open'
   }
 }, {

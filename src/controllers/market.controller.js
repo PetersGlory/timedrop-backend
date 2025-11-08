@@ -196,32 +196,23 @@ module.exports = {
 
 
   /**
-   * Admin endpoint to resolve a market and credit winners.
-   * @param {Request} req - Express request object
-   * @param {Response} res - Express response object
-   * 
-   * Expects:
-   *   req.body: {
-   *     marketId: string,
-   *     result: 'yes' | 'no'
-   *   }
-   * 
-   * Logic:
-   *   - Fetch all orders for the marketId.
-   *   - For each order, check if the order type matches the result ('yes' = 'BUY', 'no' = 'SELL').
-   *   - If orderPair has 2 users, both are checked for correctness.
-   *   - If orderPair has 1 user, check correctness and credit if correct.
-   *   - Credit the user's wallet with the order price if correct.
-   *   - Close the market after processing.
-   */
-  /**
-   * The original logic for "no pair" (single user) is not working because it expects
-   * order.orderPair to be an array of length 1. However, in some cases, orderPair might be null,
-   * undefined, or not an array at all, especially if there was never a pair.
-   * 
-   * The fix is to handle cases where orderPair is missing, not an array, or is an empty array,
-   * and treat those as "solo" orders.
-   */
+ * Admin endpoint to resolve a market and credit winners or refund unpaired orders.
+ * @param {Request} req - Express request object
+ * @param {Response} res - Express response object
+ * 
+ * Expects:
+ *   req.body: {
+ *     marketId: string,
+ *     result: 'yes' | 'no'
+ *   }
+ * 
+ * Logic:
+ *   - Fetch all orders for the marketId.
+ *   - For 'Paired' orders: Calculate winnings proportionally and credit winners.
+ *   - For 'Open' or 'PartiallyPaired' orders: Refund users their original stake.
+ *   - Create transaction records for all users.
+ *   - Close the market after processing.
+ */
   async resolveMarket(req, res) {
     const { marketId, result } = req.body;
     if (!marketId || !['yes', 'no'].includes(result)) {
@@ -244,175 +235,196 @@ module.exports = {
       // Fetch all orders for this market
       const orders = await Order.findAll({ where: { marketId } });
 
-      // Track credited users for reporting
+      // Track results for reporting
       const credited = [];
-      const processedPairs = new Set();
+      const refunded = [];
+      const processedPairGroups = new Set();
 
       for (const order of orders) {
-        // Handle paired orders (2 users)
-        if (Array.isArray(order.orderPair) && order.orderPair.length === 2) {
-          // Create a unique key for the pair to avoid double processing
+        // Handle PAIRED orders (fully matched orders)
+        if (order.status === 'Paired' && Array.isArray(order.orderPair) && order.orderPair.length > 1) {
+          // Create a unique key for this pair group to avoid double processing
           const pairKey = order.orderPair.slice().sort().join('-');
-          if (processedPairs.has(pairKey)) continue;
-          processedPairs.add(pairKey);
+          if (processedPairGroups.has(pairKey)) continue;
+          processedPairGroups.add(pairKey);
 
-          // Get both user IDs
-          const [userId1, userId2] = order.orderPair;
-          // The order model: type is for userId1, secondType is for userId2
+          // Get all orders in this pair group
+          const pairOrders = orders.filter(o => {
+            if (!Array.isArray(o.orderPair) || o.orderPair.length <= 1) return false;
+            const oPairKey = o.orderPair.slice().sort().join('-');
+            return oPairKey === pairKey;
+          });
 
-          // Find the two orders for this pair (should be two, but may be one if only one order object per pair)
-          // We'll use the current order as the reference for type/secondType
-          // Credit the correct user, add transaction for both
+          // Separate winners and losers
+          const winners = [];
+          const losers = [];
 
-          // Determine which user is correct
-          let winnerUserId = null;
-          let winnerType = null;
-          let loserUserId = null;
-          let loserType = null;
+          for (const pairOrder of pairOrders) {
+            const orderInfo = {
+              order: pairOrder,
+              userId: pairOrder.userId,
+              type: pairOrder.type,
+              price: parseFloat(pairOrder.price),
+              filledQuantity: parseFloat(pairOrder.filledQuantity || pairOrder.quantity)
+            };
 
-          if (order.type === correctOrderType) {
-            winnerUserId = userId1;
-            winnerType = order.type;
-            loserUserId = userId2;
-            loserType = order.secondType;
-          } else if (order.secondType === correctOrderType) {
-            winnerUserId = userId2;
-            winnerType = order.secondType;
-            loserUserId = userId1;
-            loserType = order.type;
-          } else {
-            // Neither user is correct, add transaction for both as loss
-            for (const [uid, t] of [[userId1, order.type], [userId2, order.secondType]]) {
+            if (pairOrder.type === correctOrderType) {
+              winners.push(orderInfo);
+            } else {
+              losers.push(orderInfo);
+            }
+          }
+
+          // Calculate total losing stakes
+          const totalLosingStakes = losers.reduce((sum, loser) => sum + loser.price, 0);
+          const profitPool = totalLosingStakes * 0.9; // 90% of losing stakes
+
+          // Calculate total winning filled quantity
+          const totalWinningQuantity = winners.reduce((sum, winner) => sum + winner.filledQuantity, 0);
+
+          // Distribute winnings proportionally based on filled quantity
+          for (const winner of winners) {
+            const proportionalShare = totalWinningQuantity > 0 
+              ? winner.filledQuantity / totalWinningQuantity 
+              : 0;
+            
+            const winnings = proportionalShare * profitPool;
+            const totalCredit = winner.price + winnings; // Original stake + proportional winnings
+
+            const wallet = await Wallet.findOne({ where: { userId: winner.userId } });
+            if (wallet) {
+              wallet.balance = parseFloat(wallet.balance) + totalCredit;
+              await wallet.save();
+              credited.push({ 
+                userId: winner.userId, 
+                amount: totalCredit,
+                breakdown: {
+                  originalStake: winner.price,
+                  winnings: winnings,
+                  filledQuantity: winner.filledQuantity,
+                  proportionalShare: (proportionalShare * 100).toFixed(2) + '%'
+                }
+              });
+
+              // Add transaction for winner
               await Transaction.create({
-                userId: uid,
+                userId: winner.userId,
                 type: 'trade',
-                amount: 0,
-                transaction_fee: null,
+                amount: totalCredit,
+                transaction_fee: (totalLosingStakes * 0.1) * proportionalShare, // Proportional fee
                 status: 'completed',
-                description: `Market resolved: ${marketId}, pair loss`,
+                description: `Market resolved: ${market.question || marketId}, win`,
                 reference: `market:${marketId}`,
                 metadata: {
-                  orderId: order.id,
+                  orderId: winner.order.id,
                   marketId: marketId,
                   result: result,
-                  credited: false,
-                  pair: order.orderPair
+                  credited: true,
+                  orderType: winner.type,
+                  filledQuantity: winner.filledQuantity,
+                  originalStake: winner.price,
+                  winnings: winnings,
+                  pair: winner.order.orderPair
                 }
               });
             }
-            continue;
           }
 
-          // Credit winner
-          const creditAmount = parseFloat(order.price) + (parseFloat(order.price) * 0.9);
-          const winnerWallet = await Wallet.findOne({ where: { userId: winnerUserId } });
-          if (winnerWallet) {
-            winnerWallet.balance = parseFloat(winnerWallet.balance) + creditAmount;
-            await winnerWallet.save();
-            credited.push({ userId: winnerUserId, amount: creditAmount });
-
-            // Add transaction for winner
+          // Create loss transactions for losers (no credit)
+          for (const loser of losers) {
             await Transaction.create({
-              userId: winnerUserId,
+              userId: loser.userId,
               type: 'trade',
-              amount: creditAmount,
-              transaction_fee: (parseFloat(order.price) * 0.1),
+              amount: 0,
+              transaction_fee: null,
               status: 'completed',
-              description: `Market resolved: ${marketId}, pair win`,
+              description: `Market resolved: ${market.question || marketId}, loss`,
+              reference: `market:${marketId}`,
+              metadata: {
+                orderId: loser.order.id,
+                marketId: marketId,
+                result: result,
+                credited: false,
+                orderType: loser.type,
+                filledQuantity: loser.filledQuantity,
+                lostStake: loser.price,
+                pair: loser.order.orderPair
+              }
+            });
+          }
+
+        } else if (order.status === 'Open' || order.status === 'PartiallyPaired') {
+          // Refund unpaired or partially paired orders
+          const refundAmount = parseFloat(order.price);
+          
+          const wallet = await Wallet.findOne({ where: { userId: order.userId } });
+          if (wallet) {
+            wallet.balance = parseFloat(wallet.balance) + refundAmount;
+            await wallet.save();
+            refunded.push({ 
+              userId: order.userId, 
+              amount: refundAmount,
+              status: order.status,
+              filledQuantity: parseFloat(order.filledQuantity || 0),
+              totalQuantity: parseFloat(order.quantity)
+            });
+
+            // Add refund transaction
+            await Transaction.create({
+              userId: order.userId,
+              type: 'refund',
+              amount: refundAmount,
+              transaction_fee: null,
+              status: 'completed',
+              description: `Market resolved: ${market.question || marketId}, order refunded (${order.status})`,
               reference: `market:${marketId}`,
               metadata: {
                 orderId: order.id,
                 marketId: marketId,
                 result: result,
-                credited: true,
+                refunded: true,
+                orderStatus: order.status,
+                orderType: order.type,
+                filledQuantity: order.filledQuantity || 0,
+                totalQuantity: order.quantity,
                 pair: order.orderPair
               }
             });
-          }
-
-          // Add transaction for loser (no credit)
-          await Transaction.create({
-            userId: loserUserId,
-            type: 'trade',
-            amount: 0,
-            transaction_fee: null,
-            status: 'completed',
-            description: `Market resolved: ${marketId}, pair loss`,
-            reference: `market:${marketId}`,
-            metadata: {
-              orderId: order.id,
-              marketId: marketId,
-              result: result,
-              credited: false,
-              pair: order.orderPair
-            }
-          });
-
-        } else {
-          // Handle single user order (no pair)
-          // This covers:
-          // - orderPair is undefined/null
-          // - orderPair is not an array
-          // - orderPair is an array of length 0 or 1
-          let isSoloOrder = false;
-          if (!order.orderPair) {
-            isSoloOrder = true;
-          } else if (!Array.isArray(order.orderPair)) {
-            isSoloOrder = true;
-          } else if (order.orderPair.length === 0) {
-            isSoloOrder = true;
-          } else if (order.orderPair.length === 1) {
-            isSoloOrder = true;
-          }
-
-          if (isSoloOrder) {
-            const creditAmount = parseFloat(order.price);
-            const wallet = await Wallet.findOne({ where: { userId: order.userId } });
-            if (wallet) {
-              wallet.balance = parseFloat(wallet.balance) + creditAmount;
-              await wallet.save();
-              credited.push({ userId: order.userId, amount: creditAmount });
-
-              // Add transaction history for the credited user
-              await Transaction.create({
-                userId: order.userId,
-                type: 'trade',
-                amount: creditAmount,
-                transaction_fee: null,
-                status: 'completed',
-                description: `Market resolved: ${marketId}, solo win`,
-                reference: `market:${marketId}`,
-                metadata: {
-                  orderId: order.id,
-                  marketId: marketId,
-                  result: result,
-                  credited: true,
-                  pair: order.orderPair
-                }
-              });
-            }
           }
         }
       }
 
       // Close the market
       market.status = 'closed';
-      market.outcome = result
+      market.outcome = result;
       await market.save();
-      // Use Promise.all to ensure all order status updates are awaited
+
+      // Update all order statuses to 'Filled'
       await Promise.all(orders.map(async order => {
         order.status = 'Filled';
         await order.save();
       }));
 
       return res.json({
-        message: 'Market resolved and winners credited.',
-        credited,
+        success: true,
+        message: 'Market resolved successfully.',
         marketId,
+        marketName: market.question || market.category,
+        result,
+        summary: {
+          totalOrders: orders.length,
+          winnersCount: credited.length,
+          refundsCount: refunded.length,
+          totalCredited: credited.reduce((sum, c) => sum + c.amount, 0).toFixed(2),
+          totalRefunded: refunded.reduce((sum, r) => sum + r.amount, 0).toFixed(2)
+        },
+        credited,
+        refunded,
         closed: true
       });
     } catch (error) {
+      console.error('Error resolving market:', error);
       return res.status(500).json({ message: 'Server error', error: error.message });
     }
-  },
+  }
 }; 
