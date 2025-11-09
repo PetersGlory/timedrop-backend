@@ -294,7 +294,6 @@ module.exports = {
             const wallet = await Wallet.findOne({ where: { userId: winner.userId } });
             if (wallet) {
               wallet.balance = parseFloat(wallet.balance) + totalCredit;
-              await wallet.save();
               credited.push({ 
                 userId: winner.userId, 
                 amount: totalCredit,
@@ -327,6 +326,7 @@ module.exports = {
                   pair: winner.order.orderPair
                 }
               });
+              await wallet.save();
             }
           }
 
@@ -360,7 +360,6 @@ module.exports = {
           const wallet = await Wallet.findOne({ where: { userId: order.userId } });
           if (wallet) {
             wallet.balance = parseFloat(wallet.balance) + refundAmount;
-            await wallet.save();
             refunded.push({ 
               userId: order.userId, 
               amount: refundAmount,
@@ -390,6 +389,7 @@ module.exports = {
                 pair: order.orderPair
               }
             });
+            await wallet.save();
           }
         }
       }
