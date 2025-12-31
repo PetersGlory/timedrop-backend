@@ -858,15 +858,28 @@ router.get('/recent-activities', auth, isAdmin, adminController.getRecentActivit
  *   get:
  *     tags: [Admin]
  *     summary: Get platform revenue and trading volume statistics
- *     description: >
- *       Retrieve platform revenue and trading volume statistics, including:
- *         - All-time revenue (sum of transaction fees for all completed 'trade' transactions)
- *         - All-time trading volume (sum of amount for all completed 'trade' transactions)
- *         - Today's revenue (sum of transaction fees for completed 'trade' transactions created today)
+ *     description: |
+ *       Retrieve overall platform revenue and trade volume metrics.  
+ *       
+ *       Details returned:
+ *         - All-time revenue: sum of `transaction_fee` for all completed 'trade' transactions.
+ *         - All-time trading volume: sum of `amount` for all completed 'trade' transactions.
+ *         - Revenue for a specific date: sum of `transaction_fee` for 'trade' transactions completed on a specified date (defaults to today if not provided).
+ *       
+ *       Optional query parameters:
+ *         - `date` (string, optional): ISO string or yyyy-mm-dd. If supplied, returns revenue for that day under `todaysRevenue`. Otherwise, uses the current day.
+ *       
  *       Admin access only.
  *     operationId: adminGetRevenueStats
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Date to calculate single-day revenue statistics for (ISO string or yyyy-mm-dd). Defaults to today.
  *     responses:
  *       200:
  *         description: Revenue and trading volume statistics
@@ -878,15 +891,19 @@ router.get('/recent-activities', auth, isAdmin, adminController.getRecentActivit
  *                 totalRevenue:
  *                   type: number
  *                   format: float
- *                   description: All-time total revenue (sum of transaction fees)
+ *                   description: All-time total revenue (sum of transaction fees for completed trades)
  *                 totalVolume:
  *                   type: number
  *                   format: float
- *                   description: All-time total trading volume (sum of trade amounts)
+ *                   description: All-time total trading volume (sum of amounts for completed trades)
  *                 todaysRevenue:
  *                   type: number
  *                   format: float
- *                   description: Today's revenue (sum of transaction fees for trades created today)
+ *                   description: Revenue for the selected date (sum of transaction fees for trades completed that date)
+ *                 date:
+ *                   type: string
+ *                   format: date
+ *                   description: Date (yyyy-mm-dd) for which `todaysRevenue` is returned
  *       500:
  *         description: Server error
  */

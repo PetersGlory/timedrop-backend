@@ -1006,12 +1006,28 @@ module.exports = {
    * Get platform revenue and trading volume statistics.
    * - Revenue: sum of transaction_fee for all 'trade' transactions.
    * - Volume: sum of amount for all 'trade' transactions.
-   * - Today's revenue: sum of transaction_fee for 'trade' transactions created today.
+   * - Todays revenue/date revenue: sum of transaction_fee for 'trade' transactions created on a specific date (if provided) or today.
+   * 
+   * Optional query param:
+   *   - date (ISO string or yyyy-mm-dd)
    */
   async getRevenueStats(req, res) {
     try {
-      // All-time revenue and volume
-      const [allStats, todayStats] = await Promise.all([
+      // Parse query date if provided, otherwise use current date
+      let targetDate = new Date();
+      if (req.query.date) {
+        // Accept ISO and yyyy-mm-dd formats
+        const tryDate = new Date(req.query.date);
+        if (!isNaN(tryDate.getTime())) {
+          targetDate = tryDate;
+        }
+      }
+      // Set start of day and end of day for the date filter
+      const startOfDay = new Date(targetDate.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(targetDate.setHours(23, 59, 59, 999));
+
+      // All-time revenue and volume, and revenue for the date filter
+      const [allStats, dateStats] = await Promise.all([
         Transaction.findAll({
           where: { type: 'trade', status: 'completed' },
           attributes: [
@@ -1025,8 +1041,8 @@ module.exports = {
             type: 'trade',
             status: 'completed',
             created_at: {
-              [Op.gte]: new Date(new Date().setHours(0, 0, 0, 0)),
-              [Op.lt]: new Date(new Date().setHours(23, 59, 59, 999))
+              [Op.gte]: startOfDay,
+              [Op.lt]: endOfDay
             }
           },
           attributes: [
@@ -1038,12 +1054,13 @@ module.exports = {
 
       const totalRevenue = parseFloat(allStats[0].totalRevenue) || 0;
       const totalVolume = parseFloat(allStats[0].totalVolume) || 0;
-      const todaysRevenue = parseFloat(todayStats[0].todaysRevenue) || 0;
+      const todaysRevenue = parseFloat(dateStats[0].todaysRevenue) || 0;
 
       res.json({
         totalRevenue,
         totalVolume,
-        todaysRevenue
+        todaysRevenue,
+        date: req.query.date ? new Date(startOfDay).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)
       });
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
