@@ -1,6 +1,7 @@
 const { default: axios } = require('axios');
-const { Withdrawal, Wallet, Transaction } = require('../models');
+const { Withdrawal, Wallet, Transaction, sequelize } = require('../models');
 const { flw } = require('../utils/flutterwave');
+const { Op } = require('sequelize');
 
 // Flutterwave configuration
 const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
@@ -129,6 +130,7 @@ module.exports = {
 
   // Withdraw funds from the authenticated user's wallet
   async withdraw(req, res) {
+
     try {
       const {
         account_bank,
@@ -148,109 +150,216 @@ module.exports = {
         });
       }
 
-      // Generate a unique reference for the withdrawal (e.g., using timestamp and user id)
-      const reference = `TD-${req.user.id}-${Date.now()}-WD`;
-
-      // Check wallet and balance
-      const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
-      if (!wallet) {
-        return res.status(404).json({ message: 'Wallet not found' });
-      }
-
-      // Ensure amount and transaction_fee are numbers
-      const withdrawalAmount = Number(amount);
-      const fee = Number(transaction_fee) || 0;
-      const currentBalance = Number(wallet.balance);
-
-      if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
-        return res.status(400).json({ message: 'Withdrawal amount must be a positive number' });
-      }
-      if (isNaN(fee) || fee < 0) {
-        return res.status(400).json({ message: 'Transaction fee must be a non-negative number' });
-      }
-      if (currentBalance < (withdrawalAmount + fee)) {
-        return res.status(400).json({ message: 'Insufficient funds' });
-      }
-
-      // Prepare payout data for Flutterwave
-      const payoutData = {
-        account_bank,
-        account_number,
-        amount: withdrawalAmount,
-        narration: narration || 'Wallet withdrawal',
-        currency,
-        reference,
-        callback_url,
-        debit_currency
-      };
-
-      // Initiate payout via Flutterwave
-      const response = await axios.post(
-        `${FLUTTERWAVE_BASE_URL}/transfers`,
-        payoutData,
-        {
-          headers: {
-            'Authorization': `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      // Check Flutterwave response for success and status
-      const fwData = response.data;
-      if (!fwData || fwData.status !== 'success' || !fwData.data) {
-        return res.status(500).json({
-          success: false,
-          error: fwData?.message || 'Payout failed',
-          err: fwData
+      // RATE LIMIT: Allow withdraw API to be called once in a minute per user
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+      const recentWithdraw = await Withdrawal.findOne({
+        where: {
+          userId: req.user.id,
+          createdAt: { [Op.gt]: oneMinuteAgo }
+        },
+        order: [['createdAt', 'DESC']]
+      });
+      if (recentWithdraw) {
+        return res.status(429).json({
+          message: 'Withdrawal can only be performed once every 1 minute. Please wait before trying again.'
         });
       }
 
-      // Deduct from wallet and record withdrawal if payout is successful
-      // Use toFixed to avoid floating point issues, but store as string for DB decimal
-      const newBalance = (currentBalance - (withdrawalAmount + fee)).toFixed(2);
-      wallet.balance = newBalance;
-      await wallet.save();
+      // Generate a unique reference for the withdrawal (e.g., using timestamp and user id)
+      const reference = `TD-${req.user.id}-${Date.now()}-WD`;
 
-      // Use the transfer id and status from Flutterwave for record
-      // Normalize transferData to match the expected structure from Flutterwave
-      const transferData = fwData.data || {};
-      await Withdrawal.create({
-        userId: req.user.id,
-        amount: withdrawalAmount,
-        currency: wallet.currency || 'NGN',
-        status: transferData.status == "success" ? "completed" : 'pending',
-        transaction_fee: fee,
-        processedAt: new Date(),
-        reason: narration || null,
-        reference: transferData.reference || reference,
-        flutterwaveTransferId: transferData.id || null,
-        bank_name: transferData.bank_name || null,
-        account_number: transferData.account_number || null
-      });
+      // We'll use a transaction for rollbacks
+      const dbTransaction = await sequelize.transaction();
 
-      // Add transaction section after withdrawal is created
-      await Transaction.create({
-        type: 'withdrawal',
-        amount: withdrawalAmount,
-        status: transferData.status == "success" ? "completed" : 'pending',
-        description: narration || 'Wallet withdrawal',
-        reference: transferData.reference || reference,
-        transaction_fee: fee,
-        metadata: {
-          flutterwaveTransferId: transferData.id || null,
-          bank_name: transferData.bank_name || null,
-          account_number: transferData.account_number || null,
-          currency: wallet.currency || 'NGN'
-        },
-        userId: req.user.id
-      });
+      try {
+        // Check wallet and balance
+        const wallet = await Wallet.findOne({ where: { userId: req.user.id }, lock: true, transaction: dbTransaction });
+        if (!wallet) {
+          await dbTransaction.rollback();
+          return res.status(404).json({ message: 'Wallet not found' });
+        }
 
-      return res.json({
-        success: true,
-        message: fwData.data.message || 'Transfer Queued Successfully',
-        data: transferData
-      });
+        // Ensure amount and transaction_fee are numbers
+        const withdrawalAmount = Number(amount);
+        const fee = Number(transaction_fee) || 0;
+        const currentBalance = Number(wallet.balance);
+
+        if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
+          await dbTransaction.rollback();
+          return res.status(400).json({ message: 'Withdrawal amount must be a positive number' });
+        }
+        if (isNaN(fee) || fee < 0) {
+          await dbTransaction.rollback();
+          return res.status(400).json({ message: 'Transaction fee must be a non-negative number' });
+        }
+        if (currentBalance < (withdrawalAmount + fee)) {
+          await dbTransaction.rollback();
+          return res.status(400).json({ message: 'Insufficient funds' });
+        }
+
+        // Prepare payout data for Flutterwave
+        const payoutData = {
+          account_bank,
+          account_number,
+          amount: withdrawalAmount,
+          narration: narration || 'Wallet withdrawal',
+          currency,
+          reference,
+          callback_url,
+          debit_currency
+        };
+
+        // Deduct from wallet FIRST inside transaction
+        const newBalance = (currentBalance - (withdrawalAmount + fee)).toFixed(2);
+        wallet.balance = newBalance;
+        await wallet.save({ transaction: dbTransaction, lock: true });
+
+        // Create withdrawal record INSIDE transaction, with status 'pending'
+        const withdrawalRecord = await Withdrawal.create({
+          userId: req.user.id,
+          amount: withdrawalAmount,
+          currency: wallet.currency || 'NGN',
+          status: 'pending',
+          transaction_fee: fee,
+          processedAt: new Date(),
+          reason: narration || null,
+          reference: reference,
+          flutterwaveTransferId: null,
+          bank_name: null,
+          account_number
+        }, { transaction: dbTransaction });
+
+        // Also create a pending transaction record
+        await Transaction.create({
+          type: 'withdrawal',
+          amount: withdrawalAmount,
+          status: 'pending',
+          description: narration || 'Wallet withdrawal',
+          reference: reference,
+          transaction_fee: fee,
+          metadata: {
+            flutterwaveTransferId: null,
+            bank_name: null,
+            account_number: account_number,
+            currency: wallet.currency || 'NGN'
+          },
+          userId: req.user.id
+        }, { transaction: dbTransaction });
+
+        // Commit DB transaction BEFORE calling Flutterwave (since we already deducted, and failure will lead to rollback)
+        await dbTransaction.commit();
+
+        // Initiate payout via Flutterwave (outside of DB transaction)
+        let fwData, transferData;
+        let flutterwaveResponse;
+        try {
+          flutterwaveResponse = await axios.post(
+            `${FLUTTERWAVE_BASE_URL}/transfers`,
+            payoutData,
+            {
+              headers: {
+                'Authorization': `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          fwData = flutterwaveResponse.data;
+        } catch (fwErr) {
+          // If calling Flutterwave fails, rollback: restore balance, update withdrawal & transaction record to 'failed'!
+          // Use a new DB transaction for rollback!
+          await sequelize.transaction(async t => {
+            // Restore wallet balance
+            const rollbackWallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction: t, lock: true });
+            rollbackWallet.balance = currentBalance.toFixed(2);
+            await rollbackWallet.save({ transaction: t, lock: true });
+
+            // Update withdrawal & transaction status to 'failed'
+            await Withdrawal.update(
+              { status: 'failed' },
+              { where: { id: withdrawalRecord.id }, transaction: t }
+            );
+            await Transaction.update(
+              { status: 'failed' },
+              { where: { reference: reference }, transaction: t }
+            );
+          });
+          // Respond with error info
+          const message = fwErr.response?.data?.message || fwErr.message || 'Payout failed';
+          return res.status(fwErr.response?.status || 500).json({
+            success: false,
+            error: message,
+            errorbody: fwErr.response?.data
+          });
+        }
+
+        if (!fwData || fwData.status !== 'success' || !fwData.data) {
+          // rollback wallet & update statuses as above
+          await sequelize.transaction(async t => {
+            const rollbackWallet = await Wallet.findOne({ where: { userId: req.user.id }, transaction: t, lock: true });
+            rollbackWallet.balance = currentBalance.toFixed(2);
+            await rollbackWallet.save({ transaction: t, lock: true });
+
+            await Withdrawal.update(
+              { status: 'failed' },
+              { where: { id: withdrawalRecord.id }, transaction: t }
+            );
+            await Transaction.update(
+              { status: 'failed' },
+              { where: { reference: reference }, transaction: t }
+            );
+          });
+          return res.status(500).json({
+            success: false,
+            error: fwData?.message || 'Payout failed',
+            err: fwData
+          });
+        }
+
+        // If Flutterwave success, update withdrawal and transaction with flutterwave response
+        transferData = fwData.data || {};
+        const completedStatus = transferData.status == "success" ? "completed" : 'pending';
+
+        await Withdrawal.update(
+          {
+            status: completedStatus,
+            flutterwaveTransferId: transferData.id || null,
+            bank_name: transferData.bank_name || null,
+            account_number: transferData.account_number || null,
+            reference: transferData.reference || reference
+          },
+          { where: { id: withdrawalRecord.id } }
+        );
+
+        // Update transaction record as well
+        await Transaction.update(
+          {
+            status: completedStatus,
+            reference: transferData.reference || reference,
+            metadata: {
+              flutterwaveTransferId: transferData.id || null,
+              bank_name: transferData.bank_name || null,
+              account_number: transferData.account_number || null,
+              currency: wallet.currency || 'NGN'
+            }
+          },
+          { where: { reference: reference, userId: req.user.id } }
+        );
+
+        return res.json({
+          success: true,
+          message: fwData.data.message || 'Transfer Queued Successfully',
+          data: transferData
+        });
+
+      } catch (err) {
+        // Any DB error during business logic, rollback!
+        if (dbTransaction && !dbTransaction.finished) await dbTransaction.rollback();
+        console.error('Payout error (db):', err.message || err);
+        return res.status(500).json({
+          success: false,
+          error: err.message || 'Payout failed during transaction'
+        });
+      }
 
     } catch (error) {
       console.error('Payout error:', error.response?.data || error.message);
