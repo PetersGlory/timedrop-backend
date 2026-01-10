@@ -4,7 +4,7 @@ const Order = require('../models/order');
 const Portfolio = require('../models/portfolio');
 const Settings = require('../models/settings');
 const Bookmark = require('../models/bookmark');
-const { Withdrawal, Transaction, Wallet } = require('../models');
+const { Withdrawal, Transaction, Wallet, sequelize } = require('../models');
 const { Op } = require('sequelize');
 const { flw } = require('../utils/flutterwave');
 
@@ -730,6 +730,8 @@ module.exports = {
           id: withdrawal.flutterwaveTransferId
         };
 
+        // Start transaction for each withdrawal
+        const t = await sequelize.transaction();
         try {
           // Fetch transfer status from Flutterwave
           const response = await flw.Transfer.get_a_transfer(payload);
@@ -744,6 +746,7 @@ module.exports = {
             response.status !== "success" ||
             !fwStatus
           ) {
+            await t.rollback();
             results.push({
               id: withdrawal.id,
               success: false,
@@ -772,52 +775,52 @@ module.exports = {
           }
 
           // Update Withdrawal status
-          if(newStatus == "pending"){
+          if (newStatus == "pending") {
             await Withdrawal.update(
               { status: newStatus, adminSynced: false },
-              { where: { id: withdrawal.id } }
+              { where: { id: withdrawal.id }, transaction: t }
             );
-          }else{
+          } else {
             await Withdrawal.update(
               { status: newStatus, adminSynced: true },
-              { where: { id: withdrawal.id } }
+              { where: { id: withdrawal.id }, transaction: t }
             );
           }
 
           // Update Transaction status where reference matches withdrawal reference
           await Transaction.update(
             { status: newStatus },
-            { where: { reference: withdrawal.reference } }
+            { where: { reference: withdrawal.reference }, transaction: t }
           );
 
-          // 
-          // --- EXPLANATION ---
-          // The following block will run for EVERY withdrawal that is marked as "completed".
-          // If there are multiple withdrawals for the same user, the wallet will be updated multiple times.
-          // This is expected if each withdrawal is a separate transaction.
-          // 
+          // Handle rollback for failed withdrawal: restore amount and fee to wallet
           if (newStatus == "failed") {
-            const userWallet = await Wallet.findOne({ 
-              where: { userId: withdrawal.userId } 
+            const userWallet = await Wallet.findOne({
+              where: { userId: withdrawal.userId },
+              transaction: t,
+              lock: t.LOCK.UPDATE
             });
-            
+
             if (!userWallet) {
+              await t.rollback();
               throw new Error(`Wallet not found for user ${withdrawal.userId}`);
             }
-            
+
             // Calculate new balance: current balance + transaction fee + withdrawal amount
             const currentBalance = parseFloat(userWallet.balance) || 0;
             const transactionFee = parseFloat(withdrawal.transaction_fee) || 0;
             const withdrawalAmount = parseFloat(withdrawal.amount) || 0;
-            
+
             const newBalance = currentBalance + transactionFee + withdrawalAmount;
-            
+
             // Update wallet
-            userWallet.balance = newBalance.toFixed(2); // Keep 2 decimal places
-            await userWallet.save();
-            
+            userWallet.balance = newBalance.toFixed(2);
+            await userWallet.save({ transaction: t, lock: t.LOCK.UPDATE });
+
             console.log(`✅ Wallet updated for user ${withdrawal.userId}: ${currentBalance} + ${transactionFee} + ${withdrawalAmount} = ${newBalance}`);
           }
+
+          await t.commit();
 
           results.push({
             id: withdrawal.id,
@@ -826,6 +829,7 @@ module.exports = {
             message: "Transaction status updated"
           });
         } catch (err) {
+          await t.rollback();
           results.push({
             id: withdrawal.id,
             success: false,
