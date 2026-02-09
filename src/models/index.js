@@ -8,10 +8,36 @@ const Bookmark = require('./bookmark');
 const Category = require('./category');
 const Wallet = require('./wallet');
 const Withdrawal = require('./withdrawal');
-const Transaction = require('./transaction')
+const Transaction = require('./transaction');
+const Agent = require('./agent');
+const ReferralTracking = require('./referral-tracking');
 
 // Define associations here as needed
 // e.g., User.hasMany(Order), etc.
+
+// Agent -> ReferralTracking (One-to-Many)
+Agent.hasMany(ReferralTracking, {
+  foreignKey: 'agentId',
+  as: 'referralTracking',
+  onDelete: 'CASCADE'
+});
+
+ReferralTracking.belongsTo(Agent, {
+  foreignKey: 'agentId',
+  as: 'agent'
+});
+
+// User -> ReferralTracking (One-to-Many)
+User.hasMany(ReferralTracking, {
+  foreignKey: 'userId',
+  as: 'referralUsage',
+  onDelete: 'CASCADE'
+});
+
+ReferralTracking.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user'
+});
 
 // Sync all models with database (disabled in production; use migrations instead)
 const syncDatabase = async () => {
@@ -32,6 +58,8 @@ const syncDatabase = async () => {
     await Wallet.sync({ alter: alterOption });
     await Withdrawal.sync({ alter: alterOption });
     await Transaction.sync({ alter: alterOption });
+    await Agent.sync({ alter: alterOption });
+    await ReferralTracking.sync({ alter: alterOption });
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 1;');
     console.log('Database synced successfully');
   } catch (error) {
@@ -55,5 +83,7 @@ module.exports = {
   Wallet,
   Withdrawal,
   Transaction,
+  Agent,
+  ReferralTracking,
   syncDatabase
 };

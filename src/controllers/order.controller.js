@@ -214,6 +214,219 @@ module.exports = {
     }
   },
 
+  async createOrderWithReferralCode(req, res) {
+    try {
+      const { marketId, type, quantity, price, agentReferralCode } = req.body;
+
+      // Validate required fields
+      if (!marketId || !type || !quantity || !price) {
+        return res.status(400).json({ message: 'marketId, type, quantity, and price are required' });
+      }
+
+      // Validate order type
+      if (!['BUY', 'SELL'].includes(type)) {
+        return res.status(400).json({ message: 'Order type must be BUY or SELL' });
+      }
+
+      // Check for duplicate order
+      const prevOrder = await Order.findOne({
+        where: {
+          marketId,
+          userId: req.user.id,
+          price,
+          type
+        }
+      });
+
+      if (prevOrder) {
+        return res.status(422).json({
+          message: "You already have an order with the same market, type, and price."
+        });
+      }
+
+      // Fetch user, wallet, and market
+      const user = await User.findByPk(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const wallet = await Wallet.findOne({ where: { userId: req.user.id } });
+      if (!wallet) {
+        return res.status(404).json({ message: 'Wallet not found' });
+      }
+
+      const market = await Market.findOne({ where: { id: marketId } });
+      if (!market) {
+        return res.status(404).json({ message: 'Market not found' });
+      }
+
+      // Validate referral code if provided
+      let validAgent = null;
+      if (agentReferralCode) {
+        validAgent = await Agent.findOne({ 
+          where: { 
+            referralCode: agentReferralCode.toUpperCase(),
+            isActive: true 
+          } 
+        });
+
+        if (!validAgent) {
+          return res.status(400).json({ 
+            message: 'Invalid or inactive referral code' 
+          });
+        }
+      }
+
+      // Calculate total cost and deduct from wallet
+      const totalCost = parseFloat(price);
+      if (parseFloat(wallet.balance) < totalCost) {
+        return res.status(400).json({ message: 'Insufficient wallet balance' });
+      }
+
+      wallet.balance = (parseFloat(wallet.balance) - totalCost).toFixed(8);
+      await wallet.save();
+
+      const oppositeType = type === 'BUY' ? 'SELL' : 'BUY';
+      const requestedQuantity = parseFloat(quantity);
+
+      // Find all matching opposite orders (FIFO - ordered by creation date)
+      const matchingOrders = await Order.findAll({
+        where: {
+          marketId,
+          price,
+          type: oppositeType,
+          status: { [Op.in]: ['Open', 'PartiallyPaired'] }, // Can match with open or partially paired orders
+          userId: { [Op.ne]: req.user.id }
+        },
+        order: [['createdAt', 'ASC']] // FIFO ordering
+      });
+
+      let remainingQuantity = requestedQuantity;
+      let orderPair = [req.user.id];
+      let matchedOrderIds = [];
+      let totalMatchedQuantity = 0;
+
+      // Try to match with existing orders
+      for (const matchOrder of matchingOrders) {
+        if (remainingQuantity <= 0) break;
+
+        // Calculate how much this order still needs to be filled
+        const matchOrderFilled = matchOrder.filledQuantity || 0;
+        const matchOrderRemaining = parseFloat(matchOrder.quantity) - matchOrderFilled;
+
+        if (matchOrderRemaining <= 0) continue; // Skip fully filled orders
+
+        // Calculate how much we can match with this order
+        const matchAmount = Math.min(remainingQuantity, matchOrderRemaining);
+
+        // Update the matched order
+        const newFilledQuantity = matchOrderFilled + matchAmount;
+        const existingPair = matchOrder.orderPair || [];
+        
+        // Add current user to the matched order's pair if not already present
+        if (!existingPair.includes(req.user.id)) {
+          existingPair.push(req.user.id);
+        }
+
+        matchOrder.orderPair = existingPair;
+        matchOrder.filledQuantity = newFilledQuantity;
+        
+        // Update status based on fill
+        if (newFilledQuantity >= parseFloat(matchOrder.quantity)) {
+          matchOrder.status = 'Paired';
+        } else {
+          matchOrder.status = 'PartiallyPaired';
+        }
+
+        await matchOrder.save();
+
+        // Add matched order's user to our orderPair if not already present
+        if (!orderPair.includes(matchOrder.userId)) {
+          orderPair.push(matchOrder.userId);
+        }
+
+        matchedOrderIds.push(matchOrder.id);
+        totalMatchedQuantity += matchAmount;
+        remainingQuantity -= matchAmount;
+      }
+
+      // Determine status for the new order
+      let orderStatus;
+      if (totalMatchedQuantity >= requestedQuantity) {
+        orderStatus = 'Paired';
+      } else if (totalMatchedQuantity > 0) {
+        orderStatus = 'PartiallyPaired';
+      } else {
+        orderStatus = 'Open';
+      }
+
+      // Create the new order (with referral code if provided)
+      const newOrder = await Order.create({
+        marketId,
+        marketName: market.question || market.category || '',
+        userId: req.user.id,
+        type,
+        secondType: oppositeType,
+        price,
+        quantity: requestedQuantity,
+        filledQuantity: totalMatchedQuantity,
+        status: orderStatus,
+        orderPair: orderPair.length > 1 ? orderPair : [req.user.id], // Only include pair if matched
+        agentReferralCode: agentReferralCode ? agentReferralCode.toUpperCase() : null // Store referral code
+      });
+
+      // Track referral if valid agent code was provided
+      if (validAgent && agentReferralCode) {
+        try {
+          await ReferralTracking.create({
+            referralCode: agentReferralCode.toUpperCase(),
+            agentId: validAgent.id,
+            userId: req.user.id,
+            marketId,
+            orderId: newOrder.id,
+            orderAmount: parseFloat(price),
+            orderType: type
+          });
+
+          // Update agent statistics
+          validAgent.totalReferrals = validAgent.totalReferrals + 1;
+          validAgent.totalReferralVolume = parseFloat(validAgent.totalReferralVolume) + parseFloat(price);
+          await validAgent.save();
+        } catch (referralError) {
+          // Log error but don't fail the order
+          console.error('Failed to track referral:', referralError);
+        }
+      }
+
+      // Prepare response
+      const response = {
+        success: true,
+        order: newOrder,
+        pairingInfo: {
+          status: orderStatus,
+          requestedQuantity,
+          filledQuantity: totalMatchedQuantity,
+          remainingQuantity,
+          isPaired: orderStatus === 'Paired',
+          isPartiallyPaired: orderStatus === 'PartiallyPaired',
+          matchedWithOrders: matchedOrderIds,
+          orderPairUsers: orderPair,
+          pairSize: orderPair.length
+        },
+        referralInfo: agentReferralCode ? {
+          referralCodeUsed: agentReferralCode.toUpperCase(),
+          agentName: validAgent ? validAgent.name : null
+        } : null
+      };
+
+      res.status(201).json(response);
+      
+    } catch (error) {
+      console.error('Error creating order:', error);
+      res.status(400).json({ message: 'Invalid input', error: error.message });
+    }
+  },
+
   // Cancel an open order by ID for the authenticated user
   async cancelOrder(req, res) {
     try {
