@@ -75,6 +75,51 @@ router.post('/', auth, orderController.createOrder);
 
 /**
  * @swagger
+ * /orders:
+ *   post:
+ *     tags: [Orders]
+ *     summary: Place a new order (trade) on a market
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - marketId
+ *               - type
+ *               - quantity
+ *             properties:
+ *               marketId:
+ *                 type: string
+ *               referralCode:
+ *                  type: string
+ *               type:
+ *                 type: string
+ *                 enum: [BUY, SELL]
+ *               quantity:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: Order placed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 order:
+ *                   $ref: '#/components/schemas/Order'
+ *       400:
+ *         description: Invalid input
+ */
+router.post('/order-with-code', auth, orderController.createOrderWithReferralCode);
+
+/**
+ * @swagger
  * /orders/{id}/cancel:
  *   post:
  *     tags: [Orders]
