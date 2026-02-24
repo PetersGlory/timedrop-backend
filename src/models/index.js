@@ -42,10 +42,10 @@ ReferralTracking.belongsTo(User, {
 // Sync all models with database (disabled in production; use migrations instead)
 const syncDatabase = async () => {
   try {
-    // if (process.env.NODE_ENV === 'production') {
-    //   console.log('Skipping model sync in production. Use Sequelize migrations instead.');
-    //   return;
-    // }
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Skipping model sync in production. Use Sequelize migrations instead.');
+      return;
+    }
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0;');
     const alterOption = process.env.NODE_ENV === 'development';
     await User.sync({ alter: alterOption });
