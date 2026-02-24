@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Wallet, Market, sequelize } = require('../models');
+const { Wallet, Market, sequelize, Agent } = require('../models');
 const Order = require('../models/order');
 const User = require('../models/user'); // Import User model
 
@@ -39,9 +39,9 @@ module.exports = {
       const openOrders = enrichedOrders.filter(o => o.status === 'Open' || o.status === 'Paired');
       const filledOrders = enrichedOrders.filter(o => o.status === 'Filled');
   
-      res.json({ openOrders, filledOrders });
+      return res.json({ openOrders, filledOrders });
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      return res.status(500).json({ message: 'Server error', error: error.message });
     }
   },
 
@@ -419,11 +419,11 @@ module.exports = {
         } : null
       };
 
-      res.status(201).json(response);
+      return res.status(201).json(response);
       
     } catch (error) {
       console.error('Error creating order:', error);
-      res.status(400).json({ message: 'Invalid input', error: error.message });
+      return res.status(400).json({ message: 'Invalid input', error: error.message });
     }
   },
 
@@ -439,9 +439,9 @@ module.exports = {
       }
       order.status = 'Cancelled';
       await order.save();
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+      return res.status(500).json({ message: 'Server error', error: error.message });
     }
   },
 
@@ -486,14 +486,14 @@ module.exports = {
         order: [['createdAt', 'DESC']]
       });
       
-      res.json({
+      return res.json({
         success: true,
         orders,
         totalCount: orders.length
       });
     } catch (error) {
       console.error('Error fetching orders by pair status:', error);
-      res.status(500).json({ message: 'Error fetching orders', error: error.message });
+      return res.status(500).json({ message: 'Error fetching orders', error: error.message });
     }
   }
 };

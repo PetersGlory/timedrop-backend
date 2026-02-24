@@ -1,4 +1,5 @@
-const Agent = require('../models/agent');
+// const Agent = require('../models/agent');
+const { Agent } = require('../models');
 const ReferralTracking = require('../models/referral-tracking');
 const { Op } = require('sequelize');
 
