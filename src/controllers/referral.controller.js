@@ -1,7 +1,7 @@
 
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
-const { Agent, ReferralTracking, User } = require('../models');
+const { Agent, ReferralTracking, User, Order } = require('../models');
 
 module.exports = {
   // Track a new referral usage
@@ -24,9 +24,19 @@ module.exports = {
         where: { referralCode, isActive: true } 
       });
 
+      const order = await Order.findOne({
+        where:{id: orderId}
+      })
+
       if (!agent) {
         return res.status(404).json({ 
           message: 'Invalid or inactive referral code' 
+        });
+      }
+
+      if (!order) {
+        return res.status(404).json({ 
+          message: 'Invalid or inactive order' 
         });
       }
 
@@ -61,7 +71,7 @@ module.exports = {
       agent.totalReferralVolume = parseFloat(agent.totalReferralVolume) + parseFloat(orderAmount || 0);
       await agent.save();
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Referral tracked successfully',
         tracking: {
@@ -74,7 +84,7 @@ module.exports = {
       });
     } catch (error) {
       console.error('Referral tracking error:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         message: 'Server error', 
         error: error.message 
       });
