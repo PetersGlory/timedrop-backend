@@ -112,13 +112,13 @@ module.exports = {
         return res.status(404).json({ message: 'Agent not found' });
       }
 
-      res.json({
+      return res.json({
         success: true,
         agent
       });
     } catch (error) {
       console.error('Agent fetch error:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         message: 'Server error', 
         error: error.message 
       });
@@ -138,7 +138,7 @@ module.exports = {
         offset: parseInt(offset)
       });
 
-      res.json({
+      return res.json({
         success: true,
         agents,
         pagination: {
@@ -150,7 +150,7 @@ module.exports = {
       });
     } catch (error) {
       console.error('Get all agents error:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         message: 'Server error', 
         error: error.message 
       });
@@ -171,7 +171,7 @@ module.exports = {
       agent.isActive = isActive;
       await agent.save();
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Agent status updated',
         agent: {
@@ -182,7 +182,7 @@ module.exports = {
       });
     } catch (error) {
       console.error('Update agent status error:', error);
-      res.status(500).json({ 
+      return res.status(500).json({ 
         message: 'Server error', 
         error: error.message 
       });
