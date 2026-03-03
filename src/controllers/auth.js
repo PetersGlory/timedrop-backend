@@ -113,10 +113,12 @@ module.exports = {
 
   // Forgot password (not implemented)
   async forgotPassword(req, res) {
-    const {userEmail} = req.body;
+    const {email} = req.body;
+
+    console.log("this is the ermail: ", email)
 
     try{
-      const user = await User.findOne({where:{email:userEmail}});
+      const user = await User.findOne({where:{email:email}});
       if(!user){
         return res.status(401).json({ message: 'User not found' });
       }      

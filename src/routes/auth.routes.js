@@ -257,14 +257,10 @@ router.post('/forgot-password', authController.forgotPassword);
  *           schema:
  *             type: object
  *             required:
- *               - email
- *               - verificationCode
+ *               - token
  *               - newPassword
  *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               verificationCode:
+ *               token:
  *                 type: string
  *               newPassword:
  *                 type: string
