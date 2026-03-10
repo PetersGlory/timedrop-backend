@@ -165,6 +165,20 @@ module.exports = {
         });
       }
 
+      const pendingWithdraw = await Withdrawal.findOne({
+        where: {
+          userId: req.user.id,
+          status: "pending"
+        },
+        order: [['createdAt', 'DESC']]
+      });
+
+      if (pendingWithdraw) {
+        return res.status(429).json({
+          message: 'Withdrawal can only be performed once previous withdrawal is processed. Please wait before trying again.'
+        });
+      }
+
       // Generate a unique reference for the withdrawal (e.g., using timestamp and user id)
       const reference = `TD-${req.user.id}-${Date.now()}-WD`;
 
