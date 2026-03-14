@@ -33,7 +33,7 @@ module.exports = {
   // Register a new agent
   async register(req, res) {
     try {
-      const { name, email } = req.body;
+      const { name, phone, email } = req.body;
 
       // Validate required fields
       if (!name || !email) {
@@ -44,6 +44,14 @@ module.exports = {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
         return res.status(400).json({ message: 'Invalid email format' });
+      }
+
+      if (phone) {
+        // Validate phone number format (basic validation)
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164 format
+        if (!phoneRegex.test(phone)) {
+          return res.status(400).json({ message: 'Invalid phone number format' });
+        }
       }
 
       // Check if email already exists
@@ -61,6 +69,7 @@ module.exports = {
       // Create agent
       const agent = await Agent.create({
         name,
+        phone,
         email,
         referralCode,
         totalReferrals: 0,

@@ -19,6 +19,10 @@ const Agent = sequelize.define('Agent', {
       isEmail: true
     }
   },
+  phone: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   referralCode: {
     type: DataTypes.STRING,
     allowNull: false,
