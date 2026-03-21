@@ -179,4 +179,6 @@ router.get('/all', auth, isAdmin, agentController.getAllAgents);
  */
 router.patch('/:id/status', auth, isAdmin, agentController.updateAgentStatus);
 
+router.put('/:id/bank-details', auth, agentController.updateBankDetails);
+
 module.exports = router;
