@@ -31,6 +31,22 @@ const Agent = sequelize.define('Agent', {
       len: [6, 20]
     }
   },
+  // Bank account fields
+  accountNumber: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    validate: {
+      is: /^\d{6,20}$/  // digits only, 6–20 chars
+    }
+  },
+  accountName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  bankName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   totalReferrals: {
     type: DataTypes.INTEGER,
     defaultValue: 0,

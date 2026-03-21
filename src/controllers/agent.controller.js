@@ -1,4 +1,3 @@
-// const Agent = require('../models/agent');
 const { Agent } = require('../models');
 const ReferralTracking = require('../models/referral-tracking');
 const { Op } = require('sequelize');
@@ -29,11 +28,14 @@ async function ensureUniqueReferralCode(email) {
   return `AGT${Math.random().toString(36).substring(2, 12).toUpperCase()}`;
 }
 
+// Bank account fields that are required together
+const BANK_FIELDS = ['accountNumber', 'accountName', 'bankName'];
+
 module.exports = {
   // Register a new agent
   async register(req, res) {
     try {
-      const { name, phone, email } = req.body;
+      const { name, phone, email, accountNumber, accountName, bankName } = req.body;
 
       // Validate required fields
       if (!name || !email) {
@@ -47,19 +49,37 @@ module.exports = {
       }
 
       if (phone) {
-        // Validate phone number format (basic validation)
         const phoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164 format
         if (!phoneRegex.test(phone)) {
           return res.status(400).json({ message: 'Invalid phone number format' });
         }
       }
 
+      // If any bank field is provided, all three must be present
+      const providedBankFields = BANK_FIELDS.filter(f => req.body[f]);
+      if (providedBankFields.length > 0 && providedBankFields.length < BANK_FIELDS.length) {
+        const missing = BANK_FIELDS.filter(f => !req.body[f]);
+        return res.status(400).json({
+          message: `Incomplete bank details. Missing: ${missing.join(', ')}`
+        });
+      }
+
+      // Validate account number format (digits only, 6–20 chars)
+      if (accountNumber) {
+        const accountNumberRegex = /^\d{6,20}$/;
+        if (!accountNumberRegex.test(accountNumber)) {
+          return res.status(400).json({
+            message: 'Account number must be 6–20 digits with no spaces or special characters'
+          });
+        }
+      }
+
       // Check if email already exists
       const existingAgent = await Agent.findOne({ where: { email } });
       if (existingAgent) {
-        return res.status(409).json({ 
+        return res.status(409).json({
           message: 'Email already registered as agent',
-          referralCode: existingAgent.referralCode 
+          referralCode: existingAgent.referralCode
         });
       }
 
@@ -72,6 +92,9 @@ module.exports = {
         phone,
         email,
         referralCode,
+        accountNumber: accountNumber || null,
+        accountName: accountName || null,
+        bankName: bankName || null,
         totalReferrals: 0,
         totalReferralVolume: 0,
         isActive: true
@@ -85,14 +108,21 @@ module.exports = {
           name: agent.name,
           email: agent.email,
           referralCode: agent.referralCode,
+          bankDetails: agent.accountNumber
+            ? {
+                accountNumber: agent.accountNumber,
+                accountName: agent.accountName,
+                bankName: agent.bankName
+              }
+            : null,
           createdAt: agent.createdAt
         }
       });
     } catch (error) {
       console.error('Agent registration error:', error);
-      res.status(500).json({ 
-        message: 'Server error', 
-        error: error.message 
+      res.status(500).json({
+        message: 'Server error',
+        error: error.message
       });
     }
   },
@@ -103,18 +133,20 @@ module.exports = {
       const { email, referralCode } = req.query;
 
       if (!email && !referralCode) {
-        return res.status(400).json({ 
-          message: 'Email or referral code required' 
+        return res.status(400).json({
+          message: 'Email or referral code required'
         });
       }
 
-      const whereClause = email 
-        ? { email } 
-        : { referralCode };
+      const whereClause = email ? { email } : { referralCode };
 
-      const agent = await Agent.findOne({ 
+      const agent = await Agent.findOne({
         where: whereClause,
-        attributes: ['id', 'name', 'email', 'referralCode', 'totalReferrals', 'totalReferralVolume', 'isActive', 'createdAt']
+        attributes: [
+          'id', 'name', 'email', 'referralCode',
+          'accountNumber', 'accountName', 'bankName',
+          'totalReferrals', 'totalReferralVolume', 'isActive', 'createdAt'
+        ]
       });
 
       if (!agent) {
@@ -123,25 +155,45 @@ module.exports = {
 
       return res.json({
         success: true,
-        agent
+        agent: {
+          id: agent.id,
+          name: agent.name,
+          email: agent.email,
+          referralCode: agent.referralCode,
+          bankDetails: agent.accountNumber
+            ? {
+                accountNumber: agent.accountNumber,
+                accountName: agent.accountName,
+                bankName: agent.bankName
+              }
+            : null,
+          totalReferrals: agent.totalReferrals,
+          totalReferralVolume: agent.totalReferralVolume,
+          isActive: agent.isActive,
+          createdAt: agent.createdAt
+        }
       });
     } catch (error) {
       console.error('Agent fetch error:', error);
-      return res.status(500).json({ 
-        message: 'Server error', 
-        error: error.message 
+      return res.status(500).json({
+        message: 'Server error',
+        error: error.message
       });
     }
   },
 
-  // Get all agents (admin only - you can add auth middleware)
+  // Get all agents (admin only)
   async getAllAgents(req, res) {
     try {
       const { page = 1, limit = 50 } = req.query;
       const offset = (page - 1) * limit;
 
       const { count, rows: agents } = await Agent.findAndCountAll({
-        attributes: ['id', 'name', 'email', 'referralCode', 'totalReferrals', 'totalReferralVolume', 'isActive', 'createdAt'],
+        attributes: [
+          'id', 'name', 'email', 'referralCode',
+          'accountNumber', 'accountName', 'bankName',
+          'totalReferrals', 'totalReferralVolume', 'isActive', 'createdAt'
+        ],
         order: [['totalReferralVolume', 'DESC']],
         limit: parseInt(limit),
         offset: parseInt(offset)
@@ -149,7 +201,23 @@ module.exports = {
 
       return res.json({
         success: true,
-        agents,
+        agents: agents.map(agent => ({
+          id: agent.id,
+          name: agent.name,
+          email: agent.email,
+          referralCode: agent.referralCode,
+          bankDetails: agent.accountNumber
+            ? {
+                accountNumber: agent.accountNumber,
+                accountName: agent.accountName,
+                bankName: agent.bankName
+              }
+            : null,
+          totalReferrals: agent.totalReferrals,
+          totalReferralVolume: agent.totalReferralVolume,
+          isActive: agent.isActive,
+          createdAt: agent.createdAt
+        })),
         pagination: {
           total: count,
           page: parseInt(page),
@@ -159,9 +227,9 @@ module.exports = {
       });
     } catch (error) {
       console.error('Get all agents error:', error);
-      return res.status(500).json({ 
-        message: 'Server error', 
-        error: error.message 
+      return res.status(500).json({
+        message: 'Server error',
+        error: error.message
       });
     }
   },
@@ -191,9 +259,61 @@ module.exports = {
       });
     } catch (error) {
       console.error('Update agent status error:', error);
-      return res.status(500).json({ 
-        message: 'Server error', 
-        error: error.message 
+      return res.status(500).json({
+        message: 'Server error',
+        error: error.message
+      });
+    }
+  },
+
+  // Update agent bank details
+  async updateBankDetails(req, res) {
+    try {
+      const { id } = req.params;
+      const { accountNumber, accountName, bankName } = req.body;
+
+      // All three bank fields must be provided together
+      if (!accountNumber || !accountName || !bankName) {
+        return res.status(400).json({
+          message: 'accountNumber, accountName, and bankName are all required'
+        });
+      }
+
+      const accountNumberRegex = /^\d{6,20}$/;
+      if (!accountNumberRegex.test(accountNumber)) {
+        return res.status(400).json({
+          message: 'Account number must be 6–20 digits with no spaces or special characters'
+        });
+      }
+
+      const agent = await Agent.findByPk(id);
+      if (!agent) {
+        return res.status(404).json({ message: 'Agent not found' });
+      }
+
+      agent.accountNumber = accountNumber;
+      agent.accountName = accountName;
+      agent.bankName = bankName;
+      await agent.save();
+
+      return res.json({
+        success: true,
+        message: 'Bank details updated',
+        agent: {
+          id: agent.id,
+          email: agent.email,
+          bankDetails: {
+            accountNumber: agent.accountNumber,
+            accountName: agent.accountName,
+            bankName: agent.bankName
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Update bank details error:', error);
+      return res.status(500).json({
+        message: 'Server error',
+        error: error.message
       });
     }
   }
