@@ -47,6 +47,10 @@ const Order = sequelize.define('Order', {
   status: {
     type: DataTypes.ENUM('Open', 'Filled', 'Cancelled', 'Paired', 'PartiallyPaired'),
     defaultValue: 'Open'
+  },
+  agentReferralCode: {
+    type: DataTypes.STRING,
+    allowNull: true
   }
 }, {
   timestamps: true

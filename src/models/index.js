@@ -47,7 +47,7 @@ const syncDatabase = async () => {
       return;
     }
     await sequelize.query('SET FOREIGN_KEY_CHECKS = 0;');
-    const alterOption = false //|| process.env.NODE_ENV === 'development';
+    const alterOption = process.env.NODE_ENV === 'development';
     await User.sync({ alter: alterOption });
     await Market.sync({ alter: alterOption });
     await Order.sync({ alter: alterOption });
