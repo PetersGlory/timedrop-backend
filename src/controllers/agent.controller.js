@@ -108,7 +108,7 @@ module.exports = {
           name: agent.name,
           email: agent.email,
           referralCode: agent.referralCode,
-          bankDetails: agent.accountNumber
+          bankDetails: agent.accountNumber !== null
             ? {
                 accountNumber: agent.accountNumber,
                 accountName: agent.accountName,
@@ -160,7 +160,7 @@ module.exports = {
           name: agent.name,
           email: agent.email,
           referralCode: agent.referralCode,
-          bankDetails: agent.accountNumber
+          bankDetails: agent.accountNumber !== null
             ? {
                 accountNumber: agent.accountNumber,
                 accountName: agent.accountName,
@@ -206,7 +206,7 @@ module.exports = {
           name: agent.name,
           email: agent.email,
           referralCode: agent.referralCode,
-          bankDetails: agent.accountNumber
+          bankDetails: agent.accountNumber !== null
             ? {
                 accountNumber: agent.accountNumber,
                 accountName: agent.accountName,
