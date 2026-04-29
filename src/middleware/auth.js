@@ -19,6 +19,11 @@ const auth = async (req, res, next) => {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+       // ✅ Ensure it's an access token
+      if (decoded.type !== 'access') {
+        return res.status(401).json({ error: 'Invalid token type' });
+      }
+      
       const user = await User.findOne({ where: { id: decoded.id } });
 
       if (!user) {

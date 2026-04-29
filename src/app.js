@@ -18,13 +18,23 @@ const walletRoutes = require('./routes/wallet.routes');
 const webhookRoutes = require('./routes/webhook.routes');
 const errorHandler = require('./middleware/errorHandler');
 const setupSwagger = require('./swagger');
+const helmet = require('helmet');
 
 const app = express();
 
 // Middleware
-app.use(cors({ origin: '*', credentials: true }));
+// allowed CORS origin for development and production
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://timedrop.live',
+  'https://www.timedrop.live',
+  'https://www.admins.timedrop.live',
+  'https://admins.timedrop.live'
+];
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
 
 // API Routes
 app.use('/api/auth', authRoutes);

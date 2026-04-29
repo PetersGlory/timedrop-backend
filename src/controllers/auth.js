@@ -4,9 +4,10 @@ const bcrypt = require('bcryptjs');
 const { Wallet } = require('../models');
 const emailVerificationService = require('../services/email-verification.service');
 const { Op } = require('sequelize');
+const crypto = require('crypto');
 
 function generateToken(user) {
-  return jwt.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign({ id: user.id, email: user.email, role: user.role,type: 'access' }, process.env.JWT_SECRET, { expiresIn: '15m' });
 }
 
 module.exports = {
@@ -29,9 +30,9 @@ module.exports = {
         balance: 0,
         currency: 'NGN'
       });
-      res.status(201).json({ user, token });
+      return res.status(201).json({ user, token });
     } catch (error) {
-      res.status(400).json({ message: 'Invalid input', error: error.message });
+      return res.status(400).json({ message: 'Invalid input', error: error.message });
     }
   },
 
@@ -52,8 +53,7 @@ module.exports = {
           firstName,
           lastName,
           email,
-          password: '12345'+lastName, // or you can generate a random string if required by your model
-          // You may want to set a flag like "provider: 'google'" if your model supports it
+          password: crypto.randomBytes(32).toString('hex')
         });
 
         // Create wallet for the new user
